@@ -22,13 +22,52 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
     if (!result) return;
 
     const pattern = result.imagePattern || result.code || 'melanoma';
+    const hasBackendImages = Boolean(
+      result?.images?.original && result?.images?.dullrazor && result?.images?.gradcam
+    );
 
-    // 1. Render Original Canvas
+    const drawBase64ToCanvas = (b64, canvas, onLoadCb) => {
+      if (!canvas || !b64) return;
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        if (onLoadCb) onLoadCb();
+      };
+      img.src = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+    };
+
+    if (hasBackendImages) {
+      drawBase64ToCanvas(result.images.original, origCanvasRef.current, () => {
+        if (contourCanvasRef.current && origCanvasRef.current) {
+          renderContourOverlay(origCanvasRef.current, contourCanvasRef.current);
+        }
+        if (gradCanvasRef.current && origCanvasRef.current) {
+          if (colormap === 'jet' && Math.abs(opacity - 0.65) < 0.05) {
+            drawBase64ToCanvas(result.images.gradcam, gradCanvasRef.current);
+          } else {
+            renderGradCamOverlay(
+              origCanvasRef.current,
+              gradCanvasRef.current,
+              result.spectralScore,
+              colormap,
+              opacity
+            );
+          }
+        }
+      });
+      drawBase64ToCanvas(result.images.dullrazor, dullCanvasRef.current);
+      return;
+    }
+
+    // 1. Render Original Canvas (client-side fallback / benchmark mode)
     if (origCanvasRef.current) {
       if (customImageSrc) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
+          if (!origCanvasRef.current) return;
           const ctx = origCanvasRef.current.getContext('2d');
           ctx.drawImage(img, 0, 0, origCanvasRef.current.width, origCanvasRef.current.height);
           // Apply filters to dependent canvases

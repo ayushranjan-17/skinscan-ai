@@ -28,6 +28,8 @@ export default function ClinicalReportModal({
   patientData,
   customImageSrc,
   acquisitionMode = 'benchmark',
+  onStartTriage,
+  onLoadSampleReport,
 }) {
   const reportRef = useRef(null);
   const reportOrigCanvasRef = useRef(null);
@@ -40,12 +42,39 @@ export default function ClinicalReportModal({
     if (!isOpen || !result) return;
 
     const pattern = result.imagePattern || result.code || 'melanoma';
+    const hasBackendImages = Boolean(
+      result?.images?.original && result?.images?.dullrazor && result?.images?.gradcam
+    );
+
+    const drawFromBase64 = (b64, canvas, cb) => {
+      if (!canvas || !b64) return;
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        if (cb) cb();
+      };
+      img.src = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+    };
+
+    if (hasBackendImages) {
+      drawFromBase64(result.images.original, reportOrigCanvasRef.current, () => {
+        if (reportContourCanvasRef.current && reportOrigCanvasRef.current) {
+          renderContourOverlay(reportOrigCanvasRef.current, reportContourCanvasRef.current);
+        }
+      });
+      drawFromBase64(result.images.dullrazor, reportDullCanvasRef.current);
+      drawFromBase64(result.images.gradcam, reportGradCanvasRef.current);
+      return;
+    }
 
     if (reportOrigCanvasRef.current) {
       if (customImageSrc) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
+          if (!reportOrigCanvasRef.current) return;
           const ctx = reportOrigCanvasRef.current.getContext('2d');
           ctx.drawImage(
             img,
@@ -89,7 +118,49 @@ export default function ClinicalReportModal({
     }
   }, [isOpen, result, customImageSrc]);
 
-  if (!isOpen || !result) return null;
+  if (!isOpen) return null;
+
+  if (!result) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+        <div className="relative w-full max-w-md bg-derma-card border border-derma-border rounded-3xl shadow-2xl p-6 text-center space-y-5 text-slate-100">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-derma-surface text-slate-400 hover:text-white transition-all"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-derma-accent/20 border border-derma-accent/40 flex items-center justify-center text-derma-accent">
+            <FileText className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white">No Active Diagnostic Scan Yet</h3>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+              Run a lesion scan in the Point-of-Care Triage workbench to generate a patient-specific EHR clinical report, or load a sample clinical report preview now.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            {onStartTriage && (
+              <button
+                onClick={onStartTriage}
+                className="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold text-slate-200 bg-derma-surface border border-derma-border rounded-xl hover:border-derma-accent transition-all"
+              >
+                Go to Triage Scanner
+              </button>
+            )}
+            {onLoadSampleReport && (
+              <button
+                onClick={onLoadSampleReport}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue rounded-xl shadow-glow-cyan hover:opacity-95 transition-all"
+              >
+                Load Sample EHR Report
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handlePrint = () => {
     window.print();

@@ -110,9 +110,26 @@ def health():
             torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
         ),
         "last_inference_ms": round(last_inference_ms, 1),
-        "weights_path": MODEL_WEIGHTS_PATH,
+        "weights_file": os.path.basename(MODEL_WEIGHTS_PATH),
         "weights_exist": os.path.isfile(MODEL_WEIGHTS_PATH),
     }
+
+
+VALID_SEX_VALUES = {"male", "female", "other"}
+VALID_LOCALIZATIONS = {
+    "back",
+    "lower extremity",
+    "trunk",
+    "upper extremity",
+    "abdomen",
+    "face",
+    "chest",
+    "scalp",
+    "neck",
+    "unknown",
+}
+VALID_DOCTOR_PREFS = {"auto", "pcp", "derm", "onco", "mohs"}
+VALID_LESION_TYPES = {"mole", "wound"}
 
 
 @app.post("/api/analyze")
@@ -121,7 +138,9 @@ async def analyze_lesion(
     sex: str = Form("male"),
     localization: str = Form("back"),
     duration_months: int = Form(6),
-    history_of_melanoma: bool = Form(False),
+    history_of_melanoma: str = Form("false"),
+    doctor_preference: str = Form("auto"),
+    lesion_type: str = Form("mole"),
     file: Optional[UploadFile] = File(None),
 ):
     """
@@ -145,20 +164,66 @@ async def analyze_lesion(
             detail={
                 "error": "Model weights not loaded",
                 "message": "Place skinscan_densenet121_v2.pth in the models/ directory and restart the server.",
-                "weights_path": os.path.abspath(MODEL_WEIGHTS_PATH),
             },
         )
 
     if file is None:
         raise HTTPException(status_code=400, detail="No image file uploaded")
 
-    # Read image bytes
+    # Validate numeric ranges
+    if age < 0 or age > 120:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid patient age: must be between 0 and 120 years.",
+        )
+    if duration_months < 0 or duration_months > 1200:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid lesion duration: must be between 0 and 1200 months.",
+        )
+
+    # Sanitize string enum inputs against allowlists
+    clean_sex = str(sex).strip().lower()
+    if clean_sex not in VALID_SEX_VALUES:
+        clean_sex = "other"
+
+    clean_loc = str(localization).strip().lower()
+    if clean_loc not in VALID_LOCALIZATIONS:
+        clean_loc = "unknown"
+
+    clean_pref = str(doctor_preference).strip().lower()
+    if clean_pref not in VALID_DOCTOR_PREFS:
+        clean_pref = "auto"
+
+    clean_lesion_type = str(lesion_type).strip().lower()
+    if clean_lesion_type not in VALID_LESION_TYPES:
+        clean_lesion_type = "mole"
+
+    # Read and validate image bytes
     try:
         image_bytes = await file.read()
-        if len(image_bytes) == 0:
-            raise HTTPException(status_code=400, detail="Empty image file")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read image: {str(e)}")
+
+    if len(image_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Empty image file")
+    if len(image_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image file exceeds 20MB limit")
+
+    try:
+        import io
+        from PIL import Image
+
+        with Image.open(io.BytesIO(image_bytes)) as img_check:
+            img_check.verify()
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or corrupted image file. Please upload a valid JPG, PNG, or WebP image.",
+        )
+
+    # Robust boolean parsing for history_of_melanoma
+    melanoma_hx = str(history_of_melanoma).strip().lower() in ("true", "1", "yes", "t")
 
     # Run inference
     try:
@@ -166,11 +231,13 @@ async def analyze_lesion(
 
         result = engine.predict(
             image_bytes=image_bytes,
-            age=age,
-            sex=sex,
-            localization=localization,
-            duration_months=duration_months,
-            history_of_melanoma=history_of_melanoma,
+            age=int(age),
+            sex=clean_sex,
+            localization=clean_loc,
+            duration_months=int(duration_months),
+            history_of_melanoma=melanoma_hx,
+            doctor_preference=clean_pref,
+            lesion_type=clean_lesion_type,
         )
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -179,6 +246,8 @@ async def analyze_lesion(
 
         return JSONResponse(content=result)
 
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(

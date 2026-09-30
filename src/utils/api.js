@@ -84,6 +84,8 @@ export async function analyzeWithBackend(imageFile, patientData = {}) {
     formData.append('localization', patientData.localization || 'back');
     formData.append('duration_months', String(patientData.durationMonths || 6));
     formData.append('history_of_melanoma', String(patientData.historyOfMelanoma || false));
+    formData.append('doctor_preference', patientData.doctorPreference || 'auto');
+    formData.append('lesion_type', patientData.lesionType || 'mole');
 
     const response = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: 'POST',

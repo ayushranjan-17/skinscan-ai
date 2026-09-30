@@ -539,42 +539,118 @@ export function renderContourOverlay(sourceCanvas, targetCanvas) {
   const imgData = sCtx.getImageData(0, 0, w, h);
   const src = imgData.data;
 
-  tCtx.strokeStyle = '#00F0FF';
-  tCtx.lineWidth = 2;
-  tCtx.fillStyle = 'rgba(0, 240, 255, 0.15)';
+  // 1. Calculate skin background luminance from outer corner samples
+  let skinLumSum = 0;
+  let skinSamples = 0;
+  const corners = [
+    [10, 10],
+    [w - 10, 10],
+    [10, h - 10],
+    [w - 10, h - 10],
+    [Math.round(w / 2), 10],
+    [Math.round(w / 2), h - 10],
+  ];
 
-  // Find lesion border pixels via gradient threshold
-  const borderPoints = [];
-  const cx = w / 2;
-  const cy = h / 2;
-  const numRays = 36;
+  corners.forEach(([x, y]) => {
+    if (x >= 0 && x < w && y >= 0 && y < h) {
+      const idx = (y * w + x) * 4;
+      skinLumSum += 0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2];
+      skinSamples++;
+    }
+  });
+  const avgSkinLum = skinSamples > 0 ? skinLumSum / skinSamples : 180;
+
+  // 2. Calculate lesion core luminance from center
+  const cx = Math.round(w / 2);
+  const cy = Math.round(h / 2);
+  let coreLumSum = 0;
+  let coreSamples = 0;
+  for (let dy = -10; dy <= 10; dy += 4) {
+    for (let dx = -10; dx <= 10; dx += 4) {
+      const px = cx + dx;
+      const py = cy + dy;
+      if (px >= 0 && px < w && py >= 0 && py < h) {
+        const idx = (py * w + px) * 4;
+        coreLumSum += 0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2];
+        coreSamples++;
+      }
+    }
+  }
+  const avgCoreLum = coreSamples > 0 ? coreLumSum / coreSamples : 70;
+
+  // Adaptive threshold between skin and lesion
+  const borderThreshold = avgCoreLum + (avgSkinLum - avgCoreLum) * 0.48;
+
+  // 3. Cast rays radially to detect maximum gradient / threshold boundary
+  const rawPoints = [];
+  const numRays = 48;
+  const maxRadius = Math.min(w, h) * 0.44;
+  const minRadius = Math.min(w, h) * 0.15;
 
   for (let i = 0; i < numRays; i++) {
     const angle = (i / numRays) * Math.PI * 2;
-    for (let r = 10; r < w * 0.45; r += 2) {
+    let foundRadius = maxRadius * 0.7; // default fallback
+    let maxGrad = 0;
+
+    let prevLum = null;
+    for (let r = minRadius; r < maxRadius; r += 2) {
       const px = Math.round(cx + Math.cos(angle) * r);
       const py = Math.round(cy + Math.sin(angle) * r);
       if (px >= 0 && px < w && py >= 0 && py < h) {
         const idx = (py * w + px) * 4;
         const lum = 0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2];
-        if (lum > 140) {
-          // Transitioned to outer skin
-          borderPoints.push({ x: px, y: py });
-          break;
+
+        if (prevLum !== null) {
+          const grad = lum - prevLum;
+          // Look for transition from dark lesion to bright skin
+          if (lum >= borderThreshold && grad > maxGrad) {
+            maxGrad = grad;
+            foundRadius = r;
+            break;
+          }
         }
+        prevLum = lum;
       }
     }
+    rawPoints.push({
+      x: cx + Math.cos(angle) * foundRadius,
+      y: cy + Math.sin(angle) * foundRadius,
+    });
   }
 
-  if (borderPoints.length > 5) {
+  // 4. Smooth points using circular moving average
+  const smoothed = [];
+  const n = rawPoints.length;
+  for (let i = 0; i < n; i++) {
+    const pPrev = rawPoints[(i - 1 + n) % n];
+    const pCurr = rawPoints[i];
+    const pNext = rawPoints[(i + 1) % n];
+    smoothed.push({
+      x: 0.25 * pPrev.x + 0.5 * pCurr.x + 0.25 * pNext.x,
+      y: 0.25 * pPrev.y + 0.5 * pCurr.y + 0.25 * pNext.y,
+    });
+  }
+
+  // 5. Draw high-visibility glowing medical contour
+  if (smoothed.length > 5) {
+    // Outer glow
+    tCtx.shadowColor = '#00F0FF';
+    tCtx.shadowBlur = 8;
+    tCtx.strokeStyle = '#00F0FF';
+    tCtx.lineWidth = 2.5;
+    tCtx.fillStyle = 'rgba(0, 240, 255, 0.12)';
+
     tCtx.beginPath();
-    tCtx.moveTo(borderPoints[0].x, borderPoints[0].y);
-    for (let i = 1; i < borderPoints.length; i++) {
-      tCtx.lineTo(borderPoints[i].x, borderPoints[i].y);
+    tCtx.moveTo(smoothed[0].x, smoothed[0].y);
+    for (let i = 1; i < smoothed.length; i++) {
+      const xc = (smoothed[i].x + smoothed[(i + 1) % smoothed.length].x) / 2;
+      const yc = (smoothed[i].y + smoothed[(i + 1) % smoothed.length].y) / 2;
+      tCtx.quadraticCurveTo(smoothed[i].x, smoothed[i].y, xc, yc);
     }
     tCtx.closePath();
     tCtx.stroke();
     tCtx.fill();
+    tCtx.shadowBlur = 0; // reset
   }
 }
 
@@ -586,43 +662,82 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
   let base = benchmarkData ? { ...benchmarkData } : null;
 
   if (!base) {
-    // Default dynamic inference for custom uploaded image
-    base = {
-      id: 'custom-' + Date.now(),
-      name: 'Custom Dermatoscopy Scan',
-      shortName: 'Dermoscopic Lesion',
-      code: 'mel',
-      riskStage: 'Stage 4: Malignant',
-      riskStageNum: 4,
-      riskLevel: 'Malignant',
-      spectralScore: 8.8,
-      confidence: 0.895,
-      actionNeeded: 'Urgent Dermatological Evaluation & Biopsy Recommended',
-      urgencyLevel: 'Critical',
-      urgencyColor: 'rose',
-      category: 'Malignant Neoplasm',
-      icd10: 'C43.9 - Malignant melanoma of skin, unspecified',
-      abcd: {
-        asymmetry: 1.6,
-        border: 5.9,
-        color: 4,
-        diameter: 7.8,
-        colorsDetected: ['Dark Brown', 'Black', 'Blue-Gray', 'Erythema'],
-        totalDermoscopyScore: 6.8,
-      },
-      probabilities: {
-        mel: 0.78,
-        bcc: 0.11,
-        akiec: 0.05,
-        bkl: 0.03,
-        nv: 0.02,
-        vasc: 0.005,
-        df: 0.005,
-      },
-      clinicalNotes:
-        'Visual analysis demonstrates marked border irregularity, asymmetry across two orthogonal axes, and focal blue-white veil.',
-      imagePattern: 'melanoma',
-    };
+    if (customData.lesionType === 'wound') {
+      base = {
+        id: 'wound-' + Date.now(),
+        name: 'Acute Healing Cutaneous Wound / Scab',
+        shortName: 'Healing Wound',
+        code: 'wound',
+        riskStage: 'Stage 1: Benign',
+        riskStageNum: 1,
+        riskLevel: 'Benign (Non-Cancerous)',
+        spectralScore: 1.5,
+        confidence: 0.942,
+        actionNeeded: 'Reassuring. Physiological wound healing. Zero oncological risk.',
+        urgencyLevel: 'Reassuring',
+        urgencyColor: 'teal',
+        category: 'Cutaneous Trauma / Normal Wound',
+        icd10: 'T14.1 - Open wound / Resolving Cutaneous Scab',
+        abcd: {
+          asymmetry: 0.5,
+          border: 1.8,
+          color: 2,
+          diameter: 4.2,
+          colorsDetected: ['Dried Heme / Blood Crust', 'Perilesional Erythema'],
+          totalDermoscopyScore: 2.2,
+        },
+        probabilities: {
+          mel: 0.001,
+          bcc: 0.002,
+          akiec: 0.005,
+          bkl: 0.012,
+          nv: 0.025,
+          vasc: 0.045,
+          df: 0.01,
+        },
+        clinicalNotes:
+          'Normal physiological healing cutaneous wound / dried blood crust (scab) with reactive inflammatory erythema. Negative for invasive melanocytic neoplasia.',
+        imagePattern: 'nv',
+      };
+    } else {
+      // Default dynamic inference for custom uploaded image
+      base = {
+        id: 'custom-' + Date.now(),
+        name: 'Custom Dermatoscopy Scan',
+        shortName: 'Dermoscopic Lesion',
+        code: 'mel',
+        riskStage: 'Stage 4: Malignant',
+        riskStageNum: 4,
+        riskLevel: 'Malignant',
+        spectralScore: 8.8,
+        confidence: 0.895,
+        actionNeeded: 'Urgent Dermatological Evaluation & Biopsy Recommended',
+        urgencyLevel: 'Critical',
+        urgencyColor: 'rose',
+        category: 'Malignant Neoplasm',
+        icd10: 'C43.9 - Malignant melanoma of skin, unspecified',
+        abcd: {
+          asymmetry: 1.6,
+          border: 5.9,
+          color: 4,
+          diameter: 7.8,
+          colorsDetected: ['Dark Brown', 'Black', 'Blue-Gray', 'Erythema'],
+          totalDermoscopyScore: 6.8,
+        },
+        probabilities: {
+          mel: 0.78,
+          bcc: 0.11,
+          akiec: 0.05,
+          bkl: 0.03,
+          nv: 0.02,
+          vasc: 0.005,
+          df: 0.005,
+        },
+        clinicalNotes:
+          'Visual analysis demonstrates marked border irregularity, asymmetry across two orthogonal axes, and focal blue-white veil.',
+        imagePattern: 'melanoma',
+      };
+    }
   }
 
   // Multi-modal clinical adjustment using Patient Context
@@ -637,29 +752,62 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
   if (age > 60) riskModifier += 0.4;
   else if (age < 30) riskModifier -= 0.3;
 
-  // History multiplier
-  if (historyOfMelanoma) riskModifier += 0.8;
+  // History multiplier (only applies to neoplasms, not acute wounds)
+  if (historyOfMelanoma && base.code !== 'wound') riskModifier += 0.8;
 
   // Evolution duration
-  if (durationMonths < 4) riskModifier += 0.3;
+  if (durationMonths < 4 && base.code !== 'wound') riskModifier += 0.3;
 
   // High-risk anatomical sites (head, neck, back)
-  if (localization === 'face' || localization === 'scalp' || localization === 'back') {
+  if (
+    (localization === 'face' || localization === 'scalp' || localization === 'back') &&
+    base.code !== 'wound'
+  ) {
     riskModifier += 0.2;
   }
 
-  let finalSpectralScore = Math.min(10.0, Math.max(1.0, base.spectralScore + riskModifier));
+  // Derive canonical base score from predicted disease probabilities or category
+  const classBaseScores = {
+    mel: 9.6,
+    bcc: 8.6,
+    akiec: 6.8,
+    bkl: 4.2,
+    nv: 1.8,
+    vasc: 1.3,
+    df: 2.0,
+    wound: 1.2,
+  };
+  const baseCode = (base.code || 'mel').toLowerCase();
+  
+  let canonicalBaseScore = 2.0;
+  if (base.probabilities && typeof base.probabilities === 'object' && Object.keys(base.probabilities).length > 0) {
+    canonicalBaseScore = Object.entries(classBaseScores).reduce((acc, [c, w]) => {
+      return acc + (Number(base.probabilities[c]) || 0) * w;
+    }, 0);
+  } else {
+    canonicalBaseScore = classBaseScores[baseCode] || base.baseSpectralScore || 2.0;
+  }
+
+  let finalSpectralScore = Math.min(10.0, Math.max(1.0, canonicalBaseScore + riskModifier));
   finalSpectralScore = Math.round(finalSpectralScore * 10) / 10;
 
   // Re-map 4-tier risk stage based on calibrated score and class
-  let riskStage = base.riskStage;
-  let riskStageNum = base.riskStageNum;
-  let riskLevel = base.riskLevel;
-  let urgencyLevel = base.urgencyLevel;
-  let urgencyColor = base.urgencyColor;
-  let actionNeeded = base.actionNeeded;
+  let riskStage = base.riskStage || 'Stage 1: Benign';
+  let riskStageNum = base.riskStageNum || 1;
+  let riskLevel = base.riskLevel || 'Benign';
+  let urgencyLevel = base.urgencyLevel || 'Reassuring';
+  let urgencyColor = base.urgencyColor || 'teal';
+  let actionNeeded = base.actionNeeded || 'Reassuring. Routine Annual Skin Surveillance';
 
-  if (finalSpectralScore >= 7.5) {
+  if (baseCode === 'wound') {
+    riskStage = 'Stage 1: Benign';
+    riskStageNum = 1;
+    riskLevel = 'Benign (Non-Cancerous)';
+    urgencyLevel = 'Reassuring';
+    urgencyColor = 'teal';
+    actionNeeded = 'Normal healing skin wound / scab. Zero oncological malignancy. Conservative wound hygiene care.';
+    finalSpectralScore = Math.min(finalSpectralScore, 2.5);
+  } else if (finalSpectralScore >= 7.5) {
     riskStage = 'Stage 4: Malignant';
     riskStageNum = 4;
     riskLevel = 'Malignant';
@@ -690,26 +838,91 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
   }
 
   // Doctor Referral Routing & Pathology Assessment (Cancer vs. Normal Wound/Mole)
-  let referral = base.referral;
-  if (!referral) {
+  let referral = null;
+  const pref = customData?.doctorPreference || 'auto';
+  const isCancerStage = riskStageNum === 4;
+
+  if (pref === 'pcp') {
+    referral = {
+      doctorName: 'Primary Care Physician / Family Medicine Specialist (MBBS / MD)',
+      doctorTitle: 'Attending Primary Care Physician & General Practitioner',
+      specialty: 'Primary Care & Preventive Medicine',
+      facility: 'Local Primary Healthcare Centre / Family Medicine Clinic',
+      contactInfo: 'Consult your local Primary Care Physician during routine checkup',
+      referralTimeline: isCancerStage
+        ? 'Urgent Consultation (Within 48h)'
+        : 'Within 1 to 2 Weeks (Routine Check)',
+      clinicalRationale:
+        'Patient routed to primary care for preliminary physical exam and clinical triage.',
+      recommendedProcedure:
+        'Comprehensive physical exam and preliminary clinical triage. Biopsy referral if suspicious changes observed.',
+      isCancer: isCancerStage,
+      triageClassification: 'Direct Patient Preference: Local Family Doctor / Primary Care',
+    };
+  } else if (pref === 'derm') {
+    referral = {
+      doctorName: 'Consultant Clinical Dermatologist (MD Dermatology)',
+      doctorTitle: 'Specialist in Clinical Dermatology & Photodermatology',
+      specialty: 'Clinical Dermatology & Pre-Cancerous Lesion Management',
+      facility: 'Hospital Dermatology Outpatient Department (OPD)',
+      contactInfo: 'Schedule appointment via your local Hospital Dermatology OPD',
+      referralTimeline: isCancerStage ? 'Urgent Dermoscopy (Within 72h)' : 'Within 2 to 4 Weeks',
+      clinicalRationale:
+        'Specialist clinical dermatology consultation for high-magnification dermoscopy and lesion analysis.',
+      recommendedProcedure:
+        'High-magnification polarized dermoscopy evaluation and diagnostic biopsy or cryosurgery.',
+      isCancer: isCancerStage,
+      triageClassification: 'Direct Patient Preference: Consultant Clinical Dermatologist',
+    };
+  } else if (pref === 'onco') {
+    referral = {
+      doctorName: 'Cutaneous Surgical Oncologist (MCh / Fellowship-Trained)',
+      doctorTitle: 'Specialist in Cutaneous Oncology & Melanoma Management',
+      specialty: 'Cutaneous & Surgical Oncology',
+      facility: 'Accredited Regional Cancer Centre / Surgical Oncology Department',
+      contactInfo: 'Consult your nearest accredited Oncology Triage Desk',
+      referralTimeline: 'Urgent — Within 48 to 72 Hours',
+      clinicalRationale:
+        'Direct referral to cutaneous oncology for excisional biopsy and oncological staging.',
+      recommendedProcedure:
+        'Diagnostic full-thickness excisional biopsy (2mm margin) followed by SLNB staging and histopathology.',
+      isCancer: isCancerStage || riskStageNum >= 3,
+      triageClassification: 'Direct Patient Preference: Cutaneous Surgical Oncologist',
+    };
+  } else if (pref === 'mohs') {
+    referral = {
+      doctorName: 'Mohs Micrographic & Dermatologic Surgeon (MD / Fellowship-Trained)',
+      doctorTitle: 'Specialist in Mohs Micrographic Surgery & Cutaneous Oncology',
+      specialty: 'Mohs Micrographic Surgery & Cutaneous Oncology',
+      facility: 'Accredited Dermatologic Surgery & Mohs Micrographic Unit',
+      contactInfo: 'Consult your nearest accredited Dermatologic Surgery Unit',
+      referralTimeline: 'Within 1 to 2 Weeks',
+      clinicalRationale: 'Direct referral for Mohs micrographic surgery evaluation.',
+      recommendedProcedure:
+        'Mohs micrographic surgery with intraoperative margin frozen-section mapping.',
+      isCancer: isCancerStage || riskStageNum >= 3,
+      triageClassification: 'Direct Patient Preference: Mohs Micrographic Surgeon',
+    };
+  } else {
+    // Auto-routing based on AI pathology
     if (riskStageNum === 4) {
       const isMel = base.code === 'mel';
       referral = {
         doctorName: isMel
-          ? 'Dr. Priya Sharma, MBBS, MS, MCh (Surgical Oncology)'
-          : 'Dr. Vikramaditya Rao, MD (Dermatology), FACMS (Mohs Surgery)',
+          ? 'Cutaneous Surgical Oncologist (MCh / Fellowship-Trained)'
+          : 'Mohs Micrographic & Dermatologic Surgeon (MD / Fellowship-Trained)',
         doctorTitle: isMel
-          ? 'Senior Cutaneous Surgical Oncologist & Melanoma Specialist'
-          : 'Consultant Dermatologic Surgeon & Mohs Specialist',
+          ? 'Specialist in Cutaneous Oncology & Melanoma Management'
+          : 'Specialist in Mohs Micrographic Surgery & Cutaneous Oncology',
         specialty: isMel
           ? 'Cutaneous & Surgical Oncology'
           : 'Mohs Micrographic Surgery & Cutaneous Oncology',
         facility: isMel
-          ? 'Apex Regional Cancer Centre & Research Institute'
-          : 'Advanced Skin Surgery & Mohs Micrographic Centre',
+          ? 'Accredited Regional Cancer Centre / Surgical Oncology Department'
+          : 'Accredited Dermatologic Surgery & Mohs Micrographic Unit',
         contactInfo: isMel
-          ? '+91 (080) 4123-8899 | oncology-triage@bmsce-health.org'
-          : '+91 (080) 4198-2233 | mohs-surgery@bmsce-health.org',
+          ? 'Consult your nearest accredited Oncology Triage Desk'
+          : 'Consult your nearest accredited Dermatologic Surgery Unit',
         referralTimeline: 'Urgent — Within 48 to 72 Hours',
         clinicalRationale: isMel
           ? 'High-grade malignant neoplasm with high risk of dermal invasion. Requires immediate oncological staging and wide local excision.'
@@ -722,11 +935,11 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
       };
     } else if (riskStageNum === 3) {
       referral = {
-        doctorName: 'Dr. Ananya Sen, MBBS, MD (Dermatology, Venereology & Leprosy)',
-        doctorTitle: 'Consultant Clinical Dermatologist & Photodermatology Lead',
+        doctorName: 'Consultant Clinical Dermatologist (MD Dermatology)',
+        doctorTitle: 'Specialist in Clinical Dermatology & Photodermatology',
         specialty: 'Clinical Dermatology & Pre-Cancerous Lesion Management',
-        facility: 'University Hospital Dermatology Outpatient Department',
-        contactInfo: '+91 (080) 4155-7722 | dermatology-opd@bmsce-health.org',
+        facility: 'Hospital Dermatology Outpatient Department (OPD)',
+        contactInfo: 'Schedule appointment via your local Hospital Dermatology OPD',
         referralTimeline: 'Semi-Urgent — Within 2 to 4 Weeks',
         clinicalRationale:
           'Pre-cancerous intraepithelial dysplasia from UV exposure. Early eradication prevents invasive carcinoma transformation.',
@@ -738,11 +951,11 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
       };
     } else if (riskStageNum === 2) {
       referral = {
-        doctorName: 'Dr. Rohan Mehta, MBBS, MD (Dermatology)',
-        doctorTitle: 'Consultant Dermatologist & Dermoscopy Lead',
+        doctorName: 'General Dermatologist & Dermoscopy Specialist (MD Dermatology)',
+        doctorTitle: 'Board-Certified Dermatologist & Dermoscopy Lead',
         specialty: 'General Dermatology & Dermoscopic Surveillance',
-        facility: 'City Skin & Wellness Clinic',
-        contactInfo: '+91 (080) 4188-3344 | derm-clinic@bmsce-health.org',
+        facility: 'Accredited Dermatology & Skin Surveillance Clinic',
+        contactInfo: 'Book routine follow-up with a certified Dermatology Clinic',
         referralTimeline: 'Routine Observation — 3 to 6 Months',
         clinicalRationale:
           'Atypical benign lesion with borderline pigmentation. Reassurance appropriate with short-term dermoscopic follow-up.',
@@ -753,11 +966,11 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
       };
     } else {
       referral = {
-        doctorName: 'Dr. Rajesh Kulkarni, MBBS, MD (Family Medicine & Primary Care)',
-        doctorTitle: 'Attending Primary Care Physician & Local Family Doctor',
+        doctorName: 'Primary Care Physician / Family Medicine Specialist (MBBS / MD)',
+        doctorTitle: 'Attending Primary Care Physician & General Practitioner',
         specialty: 'Primary Care & Preventive Medicine',
-        facility: 'Local Community Health & Family Medicine Clinic',
-        contactInfo: '+91 (080) 4111-9900 | primarycare@bmsce-health.org',
+        facility: 'Local Primary Healthcare Centre / Family Medicine Clinic',
+        contactInfo: 'Consult your local Primary Care Physician during routine checkup',
         referralTimeline: 'Routine — Annual Wellness Surveillance',
         clinicalRationale:
           'Normal, reassuring benign mole or resolving skin wound. Zero oncological risk or malignancy potential.',

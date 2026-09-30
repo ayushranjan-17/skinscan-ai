@@ -31,6 +31,7 @@ import {
   FileText,
   Info,
   ArrowRight,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function App() {
@@ -50,7 +51,9 @@ export default function App() {
     sex: 'male',
     localization: 'back',
     durationMonths: 7,
-    historyOfMelanoma: true,
+    historyOfMelanoma: false,
+    doctorPreference: 'auto',
+    lesionType: 'mole',
   });
 
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -106,7 +109,7 @@ export default function App() {
       const updated = { ...prev, ...newData };
       // Dynamically re-calibrate risk score if we already have results
       if (analysisResult && currentStep >= 4) {
-        const recalibrated = runSkinScanInference(updated, selectedBenchmark || analysisResult);
+        const recalibrated = runSkinScanInference(updated, analysisResult || selectedBenchmark);
         setAnalysisResult(recalibrated);
       }
       return updated;
@@ -125,6 +128,8 @@ export default function App() {
         localization: lesion.metadata?.localization || 'back',
         durationMonths: lesion.metadata?.durationMonths || 6,
         historyOfMelanoma: lesion.metadata?.historyOfMelanoma || false,
+        doctorPreference: 'auto',
+        lesionType: 'mole',
       });
       // Auto-complete step 1 when a benchmark is selected
       completeStep(1);
@@ -166,11 +171,15 @@ export default function App() {
       }
     }
 
-    // Fallback to client-side demo simulation
+    // Fallback to client-side benchmark/demo simulation
     if (!result) {
       result = runSkinScanInference(patientData, selectedBenchmark);
       result.isRealInference = false;
-      console.log('[SkinScan] 🔄 Using demo simulation (backend offline)');
+      console.log(
+        backendHealth.online
+          ? '[SkinScan] 📊 Using validated HAM10000 benchmark case profile'
+          : '[SkinScan] 🔄 Using client-side simulation (backend offline)'
+      );
     }
 
     setAnalysisResult(result);
@@ -201,7 +210,7 @@ export default function App() {
   }, [currentStep, completeStep, customImageSrc, handleAnalyze]);
 
   const handleBackStep = useCallback(() => {
-    setCurrentStep((prev) => Math.max(1, prev - 1));
+    setCurrentStep((prev) => (prev === 4 ? 2 : Math.max(1, prev - 1)));
   }, []);
 
   // Quick-launch: skip guide for returning users
@@ -214,6 +223,25 @@ export default function App() {
     setActiveTab('triage');
   }, [patientData, selectedBenchmark]);
 
+  // Return to the initial home view / landing page
+  const handleGoHome = useCallback(() => {
+    setActiveTab('triage');
+    setShowGuide(true);
+    setCurrentStep(0);
+    setIsReportModalOpen(false);
+    setIsPipelineModalOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Jump to point-of-care triage scanner
+  const handleGoToTriage = useCallback(() => {
+    setActiveTab('triage');
+    if (showGuide || currentStep === 0) {
+      setShowGuide(false);
+      setCurrentStep(1);
+    }
+  }, [showGuide, currentStep]);
+
   return (
     <div className="min-h-screen bg-derma-bg text-slate-100 flex flex-col font-sans selection:bg-derma-accent/30 selection:text-white">
       {/* Navbar */}
@@ -224,6 +252,9 @@ export default function App() {
           // If switching to triage and no step set, go to step 1
           if (tab === 'triage' && currentStep === 0 && !showGuide) setCurrentStep(1);
         }}
+        onGoHome={handleGoHome}
+        onGoToTriage={handleGoToTriage}
+        isHome={activeTab === 'triage' && showGuide && currentStep === 0}
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenPipeline={() => setIsPipelineModalOpen(true)}
         backendHealth={backendHealth}
@@ -314,17 +345,43 @@ export default function App() {
                     hidePatientForm={true}
                     hideAnalyzeButton={true}
                   />
-                  <StepNavigation
-                    currentStep={1}
-                    onNext={() => {
-                      completeStep(1);
-                      goToStep(2);
-                    }}
-                    onBack={handleBackStep}
-                    nextLabel="Continue to Patient Details"
-                    nextDisabled={false}
-                    showBack={false}
-                  />
+                  {/* Step 1 Dual Action Bar: Analyze Directly OR Add Optional Patient Info */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6">
+                    <p className="text-xs text-slate-400">
+                      {!(customImageSrc || selectedBenchmark || uploadedFile)
+                        ? "⚠️ Upload or select a lesion photo above to activate analysis"
+                        : "✓ Image ready for analysis"}
+                    </p>
+                    <div className="flex items-center space-x-3 w-full sm:w-auto">
+                      <button
+                        onClick={() => handleAnalyze(customImageSrc, uploadedFile)}
+                        disabled={!(customImageSrc || selectedBenchmark || uploadedFile) || isAnalyzing}
+                        className={`flex-1 sm:flex-none px-6 py-3 text-xs font-bold rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2 ${
+                          !(customImageSrc || selectedBenchmark || uploadedFile) || isAnalyzing
+                            ? "bg-derma-border text-slate-500 cursor-not-allowed opacity-50"
+                            : "bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 hover:opacity-95 active:scale-[0.98]"
+                        }`}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>⚡ Analyze Directly (Skip Patient Info)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          completeStep(1);
+                          goToStep(2);
+                        }}
+                        disabled={!(customImageSrc || selectedBenchmark || uploadedFile)}
+                        className={`flex-1 sm:flex-none px-4 py-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center space-x-1.5 ${
+                          !(customImageSrc || selectedBenchmark || uploadedFile)
+                            ? "border-derma-border text-slate-600 cursor-not-allowed opacity-40"
+                            : "bg-derma-card border-derma-border text-slate-300 hover:text-white hover:border-derma-accent"
+                        }`}
+                      >
+                        <span>Add Optional Details</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -340,27 +397,93 @@ export default function App() {
                   <DiagnosticWorkbench
                     selectedBenchmark={selectedBenchmark}
                     onSelectBenchmark={handleSelectBenchmark}
+                    customImageSrc={customImageSrc}
                     onAnalyze={handleAnalyze}
                     patientData={patientData}
                     onUpdatePatientData={handleUpdatePatientData}
                     isAnalyzing={isAnalyzing}
                     hideImageInput={true}
+                    hideAnalyzeButton={true}
                   />
-                  <StepNavigation
-                    currentStep={2}
-                    onNext={() => handleAnalyze(customImageSrc, uploadedFile)}
-                    onBack={handleBackStep}
-                    nextLabel="🧠 Run AI Analysis"
-                    nextDisabled={false}
-                    showBack={true}
-                  />
+                  {/* Step 2 Action Bar with prominent Skip button */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6">
+                    <button
+                      onClick={handleBackStep}
+                      className="flex items-center space-x-2 px-5 py-2.5 text-xs font-semibold text-slate-300 bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all"
+                    >
+                      <ChevronRight className="w-4 h-4 rotate-180" />
+                      <span>Back to Image</span>
+                    </button>
+                    <div className="flex items-center space-x-3 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          handleUpdatePatientData({
+                            age: 50,
+                            sex: "other",
+                            localization: "unknown",
+                            durationMonths: 6,
+                            historyOfMelanoma: false,
+                          });
+                          handleAnalyze(customImageSrc, uploadedFile);
+                        }}
+                        className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-card hover:text-white hover:border-derma-accent border border-derma-border rounded-xl transition-all"
+                      >
+                        ⚡ Skip & Run Image-Only
+                      </button>
+                      <button
+                        onClick={() => handleAnalyze(customImageSrc, uploadedFile)}
+                        className="flex-1 sm:flex-none px-6 py-2.5 text-xs font-bold bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Run Multi-Modal Analysis</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* ─── STEP 3: AI Processing Animation ─── */}
-              {!showGuide && currentStep === 3 && isProcessing && (
+              {!showGuide && currentStep === 3 && (
                 <div className="space-y-4">
-                  <AiProcessingAnimation onComplete={handleProcessingComplete} />
+                  {isProcessing ? (
+                    <AiProcessingAnimation onComplete={handleProcessingComplete} />
+                  ) : (
+                    <div className="max-w-xl mx-auto p-8 rounded-3xl bg-derma-card border border-derma-border text-center space-y-5 shadow-2xl">
+                      <div className="w-14 h-14 mx-auto rounded-2xl bg-derma-teal/20 border border-derma-teal/40 flex items-center justify-center text-derma-teal">
+                        <Brain className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">
+                          Multi-Stage AI Pipeline Executed
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          DullRazor hair removal, Gray-World normalization, DenseNet121 feature extraction, and Stolz ABCD scoring have completed.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={() => goToStep(2)}
+                          className="px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-surface border border-derma-border rounded-xl hover:text-white transition-all"
+                        >
+                          ← Edit Patient Info
+                        </button>
+                        <button
+                          onClick={() => handleAnalyze(customImageSrc, uploadedFile)}
+                          className="px-4 py-2.5 text-xs font-semibold text-derma-accent bg-derma-surface border border-derma-accent/40 rounded-xl hover:bg-derma-accent/10 transition-all"
+                        >
+                          ↻ Re-Run AI Pipeline
+                        </button>
+                        {analysisResult && (
+                          <button
+                            onClick={() => goToStep(4)}
+                            className="px-5 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue rounded-xl shadow-glow-cyan hover:opacity-95 transition-all"
+                          >
+                            View Risk Score →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -655,6 +778,13 @@ export default function App() {
         patientData={patientData}
         customImageSrc={customImageSrc}
         acquisitionMode={customImageSrc ? 'custom' : 'benchmark'}
+        onStartTriage={() => {
+          setIsReportModalOpen(false);
+          handleStartGuided();
+        }}
+        onLoadSampleReport={() => {
+          handleSkipToResults();
+        }}
       />
 
       {/* ML Pipeline & Architecture Modal */}

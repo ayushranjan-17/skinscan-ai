@@ -18,8 +18,9 @@ def calculate_clinical_metrics(y_true, y_pred, y_prob):
     target_names = ['mel', 'bcc', 'akiec', 'bkl', 'nv', 'vasc', 'df']
     
     # 1. Classification Report & Accuracy
+    report: dict = {}
     if classification_report is not None:
-        report = classification_report(y_true, y_pred, target_names=target_names, output_dict=True)
+        report = dict(classification_report(y_true, y_pred, target_names=target_names, output_dict=True))
         acc = report['accuracy']
     else:
         acc = float(np.mean(y_true == y_pred))
