@@ -8,6 +8,7 @@ import AbcdAnalysisCard from './components/AbcdAnalysisCard';
 import ResearchMetricsDashboard from './components/ResearchMetricsDashboard';
 import ClinicalReportModal from './components/ClinicalReportModal';
 import MlPipelineModal from './components/MlPipelineModal';
+import VerificationWorkflowCard from './components/VerificationWorkflowCard';
 import {
   StepProgressBar,
   AiProcessingAnimation,
@@ -141,14 +142,27 @@ export default function App() {
     setCustomImageSrc(src);
     if (file) setUploadedFile(file);
     setSelectedBenchmark(null);
+    setPatientData((prev) => ({
+      age: prev.isCustomUser ? prev.age : 28,
+      sex: prev.isCustomUser ? prev.sex : 'male',
+      localization: prev.isCustomUser ? prev.localization : 'upper extremity',
+      durationMonths: prev.isCustomUser ? prev.durationMonths : 1,
+      historyOfMelanoma: false,
+      doctorPreference: 'auto',
+      lesionType: 'mole',
+      isCustomUser: true,
+    }));
     completeStep(1);
   };
 
   // Run full multi-modal analysis (triggered from step 2 → step 3)
-  const handleAnalyze = (uploadedSrc, file) => {
+  const handleAnalyze = (uploadedSrc, file, customMetadata = null) => {
     setIsAnalyzing(true);
     if (uploadedSrc) setCustomImageSrc(uploadedSrc);
     if (file) setUploadedFile(file);
+    if (customMetadata) {
+      setPatientData(customMetadata);
+    }
     completeStep(1);
     completeStep(2);
     setCurrentStep(3);
@@ -354,7 +368,18 @@ export default function App() {
                     </p>
                     <div className="flex items-center space-x-3 w-full sm:w-auto">
                       <button
-                        onClick={() => handleAnalyze(customImageSrc, uploadedFile)}
+                        onClick={() => {
+                          const meta = (customImageSrc || uploadedFile) ? {
+                            age: patientData.isCustomUser ? patientData.age : 28,
+                            sex: patientData.isCustomUser ? patientData.sex : 'male',
+                            localization: patientData.isCustomUser ? patientData.localization : 'upper extremity',
+                            durationMonths: patientData.isCustomUser ? patientData.durationMonths : 1,
+                            historyOfMelanoma: false,
+                            doctorPreference: 'auto',
+                            lesionType: 'mole',
+                          } : patientData;
+                          handleAnalyze(customImageSrc, uploadedFile, meta);
+                        }}
                         disabled={!(customImageSrc || selectedBenchmark || uploadedFile) || isAnalyzing}
                         className={`flex-1 sm:flex-none px-6 py-3 text-xs font-bold rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2 ${
                           !(customImageSrc || selectedBenchmark || uploadedFile) || isAnalyzing
@@ -363,7 +388,7 @@ export default function App() {
                         }`}
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>⚡ Analyze Directly (Skip Patient Info)</span>
+                        <span>⚡ Analyze Directly</span>
                       </button>
                       <button
                         onClick={() => {
@@ -377,7 +402,7 @@ export default function App() {
                             : "bg-derma-card border-derma-border text-slate-300 hover:text-white hover:border-derma-accent"
                         }`}
                       >
-                        <span>Add Optional Details</span>
+                        <span>Step 2: Patient Details</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -498,6 +523,11 @@ export default function App() {
                       learnMore={`The spectral score works like a traffic light: GREEN (1-3) = likely benign mole or wound, go to your local family doctor for routine check. YELLOW (3.5-5.5) = atypical, needs dermoscopic monitoring every 3-6 months. AMBER (5.5-7.5) = pre-malignant, see a dermatologist within 2-4 weeks. RED (7.5-10) = potential cancer, urgent referral to surgical oncologist within 48-72 hours.`}
                     />
                   )}
+
+                  <VerificationWorkflowCard
+                    result={analysisResult}
+                    customImageSrc={customImageSrc}
+                  />
 
                   <RiskGaugeCard
                     result={analysisResult}

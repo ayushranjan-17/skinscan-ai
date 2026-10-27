@@ -95,7 +95,7 @@ class FocalLoss(nn.Module):
         {/* Content Body */}
         <div className="p-6 sm:p-8 overflow-y-auto space-y-6 text-xs text-slate-300">
           {/* Key Advantages Matrix */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-derma-accent font-bold block text-sm">
                 1. Multi-Modal Fusion
@@ -123,6 +123,13 @@ class FocalLoss(nn.Module):
                 specific histological category.
               </p>
             </div>
+
+            <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
+              <span className="text-amber-300 font-bold block text-sm">4. Asian Skin Calibration</span>
+              <p className="text-[11px] text-derma-muted">
+                Melanin-resilient DullRazor (R + LAB L*), Fitzpatrick III–V ITA standardization, 5-view TTA, and Shannon entropy OOD gating.
+              </p>
+            </div>
           </div>
 
           {/* Mathematical Equations */}
@@ -132,7 +139,7 @@ class FocalLoss(nn.Module):
               <span>Core Mathematical Formulations</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
               <div className="p-3 bg-derma-card rounded-xl border border-derma-border font-mono">
                 <span className="text-derma-accent font-bold block mb-1">Focal Loss:</span>
                 <code>FL(p_t) = -α_t (1 - p_t)^γ \log(p_t)</code>
@@ -143,6 +150,20 @@ class FocalLoss(nn.Module):
                   Stolz Total Dermoscopy Score:
                 </span>
                 <code>TDS = (1.3 × A) + (0.1 × B) + (0.5 × C) + (0.5 × D)</code>
+              </div>
+
+              <div className="p-3 bg-derma-card rounded-xl border border-derma-border font-mono">
+                <span className="text-amber-300 font-bold block mb-1">
+                  Individual Typology Angle:
+                </span>
+                <code>ITA = arctan((L* - 50) / b*) * (180 / π)</code>
+              </div>
+
+              <div className="p-3 bg-derma-card rounded-xl border border-derma-border font-mono">
+                <span className="text-cyan-300 font-bold block mb-1">
+                  Shannon Entropy OOD Gating:
+                </span>
+                <code>H(X) = -Σ p(x) log2 p(x)  [&lt; 1.85]</code>
               </div>
             </div>
           </div>

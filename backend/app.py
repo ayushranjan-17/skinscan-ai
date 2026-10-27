@@ -20,7 +20,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from inference import SkinScanInferenceEngine, get_engine
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+try:
+    from backend.inference import SkinScanInferenceEngine, get_engine
+except ImportError:
+    from inference import SkinScanInferenceEngine, get_engine
 
 # ─────────────────────────────────────────────────────────
 # APP CONFIGURATION
@@ -183,19 +190,19 @@ async def analyze_lesion(
         )
 
     # Sanitize string enum inputs against allowlists
-    clean_sex = str(sex).strip().lower()
+    clean_sex = sex.strip().lower()
     if clean_sex not in VALID_SEX_VALUES:
         clean_sex = "other"
 
-    clean_loc = str(localization).strip().lower()
+    clean_loc = localization.strip().lower()
     if clean_loc not in VALID_LOCALIZATIONS:
         clean_loc = "unknown"
 
-    clean_pref = str(doctor_preference).strip().lower()
+    clean_pref = doctor_preference.strip().lower()
     if clean_pref not in VALID_DOCTOR_PREFS:
         clean_pref = "auto"
 
-    clean_lesion_type = str(lesion_type).strip().lower()
+    clean_lesion_type = lesion_type.strip().lower()
     if clean_lesion_type not in VALID_LESION_TYPES:
         clean_lesion_type = "mole"
 
@@ -223,7 +230,7 @@ async def analyze_lesion(
         )
 
     # Robust boolean parsing for history_of_melanoma
-    melanoma_hx = str(history_of_melanoma).strip().lower() in ("true", "1", "yes", "t")
+    melanoma_hx = history_of_melanoma.strip().lower() in ("true", "1", "yes", "t")
 
     # Run inference
     try:
@@ -231,10 +238,10 @@ async def analyze_lesion(
 
         result = engine.predict(
             image_bytes=image_bytes,
-            age=int(age),
+            age=age,
             sex=clean_sex,
             localization=clean_loc,
-            duration_months=int(duration_months),
+            duration_months=duration_months,
             history_of_melanoma=melanoma_hx,
             doctor_preference=clean_pref,
             lesion_type=clean_lesion_type,
@@ -243,6 +250,14 @@ async def analyze_lesion(
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         last_inference_ms = elapsed_ms
         result["inference_time_ms"] = round(elapsed_ms, 1)
+
+        # Expose top-level verification fields
+        if "hair_removed_image" not in result:
+            result["hair_removed_image"] = result.get("images", {}).get("dullrazor", "")
+        if "hair_mask_image" not in result:
+            result["hair_mask_image"] = result.get("images", {}).get("hair_mask", "")
+        if "gradcam_image" not in result:
+            result["gradcam_image"] = result.get("images", {}).get("gradcam", "")
 
         return JSONResponse(content=result)
 

@@ -169,6 +169,11 @@ function mapBackendResultToFrontend(backendResult) {
         }
       : undefined,
     images: backendResult.images || {},
+    hairRemovedImage: backendResult.hair_removed_image || backendResult.images?.dullrazor,
+    hairMaskImage: backendResult.hair_mask_image || backendResult.images?.hair_mask,
+    gradcamImage: backendResult.gradcam_image || backendResult.images?.gradcam,
+    verification: backendResult.verification,
+    cancerVerification: backendResult.cancer_verification,
     analyzedAt: backendResult.analyzedAt,
     inferenceTimeMs: backendResult.inference_time_ms,
     modelVersion: backendResult.modelVersion,

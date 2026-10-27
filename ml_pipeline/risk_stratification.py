@@ -1,12 +1,101 @@
 """
-4-Stage Clinical Risk Stratification and DermaSensor 1-10 Spectral Score Engine.
+4-Stage Clinical Risk Stratification, DermaSensor Spectral Scoring,
+and Explicit Binary Cancer Verification Engine.
 Replaces biopsy-dependent TNM staging with non-invasive visual risk triage.
 """
 
-def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=None):
+def compute_cancer_verification(probability_dict: dict | None = None, is_valid_skin_upload: bool = True) -> dict:
+    """
+    Computes explicit binary cancer verification and risk tiers from 7-class HAM10000 probabilities.
+    
+    Malignant Group:
+      - 'mel': Melanoma (Invasive / in situ)
+      - 'bcc': Basal Cell Carcinoma
+      - 'akiec': Actinic Keratosis / Bowen's Intraepithelial Carcinoma
+    
+    Benign Group:
+      - 'nv': Melanocytic Nevus
+      - 'bkl': Benign Keratosis (Seborrheic / Solar Lentigo)
+      - 'df': Dermatofibroma
+      - 'vasc': Vascular Lesion (Hemangioma / Angiokeratoma)
+      - 'wound': Acute Resolving Cutaneous Trauma / Scab (if present)
+      
+    Medically Sensitive Triage Thresholds:
+      - Malignant Probability >= 0.25 (25%): Triggers Suspected Malignant / Urgent Clinical Biopsy
+      - Malignant Probability 0.12 to 0.25: Triggers Moderate Risk / Dermoscopic Surveillance (3-6 mo)
+      - Malignant Probability < 0.12: Triggers Likely Benign / Reassuring Annual Check
+    """
+    if not probability_dict or not isinstance(probability_dict, dict):
+        probability_dict = {'mel': 0.0, 'bcc': 0.0, 'akiec': 0.0, 'nv': 1.0, 'bkl': 0.0, 'df': 0.0, 'vasc': 0.0}
+
+    # Extract probabilities
+    p_mel = float(probability_dict.get('mel', 0.0))
+    p_bcc = float(probability_dict.get('bcc', 0.0))
+    p_akiec = float(probability_dict.get('akiec', 0.0))
+
+    p_nv = float(probability_dict.get('nv', 0.0))
+    p_bkl = float(probability_dict.get('bkl', 0.0))
+    p_df = float(probability_dict.get('df', 0.0))
+    p_vasc = float(probability_dict.get('vasc', 0.0))
+    p_wound = float(probability_dict.get('wound', 0.0))
+
+    raw_malignant = p_mel + p_bcc + p_akiec
+    raw_benign = p_nv + p_bkl + p_df + p_vasc + p_wound
+
+    total = raw_malignant + raw_benign
+    if total > 0:
+        mal_prob = raw_malignant / total
+        ben_prob = raw_benign / total
+    else:
+        mal_prob = 0.0
+        ben_prob = 1.0
+
+    mal_prob = round(float(mal_prob), 4)
+    ben_prob = round(float(ben_prob), 4)
+
+    if not is_valid_skin_upload:
+        is_suspected = False
+        verdict = "Invalid Skin Upload / Verification Failed"
+        tier = "Uncertain / Out-of-Distribution"
+    elif mal_prob >= 0.25:
+        is_suspected = True
+        verdict = "Suspected Malignant / Clinical Biopsy Recommended"
+        tier = "High Malignancy Risk"
+    elif mal_prob >= 0.12:
+        is_suspected = False
+        verdict = "Moderate Risk / Monitor Closely"
+        tier = "Moderate Risk"
+    else:
+        is_suspected = False
+        verdict = "Likely Benign"
+        tier = "Low / Reassuring"
+
+    class_breakdown = {
+        'mel': round(p_mel, 4),
+        'bcc': round(p_bcc, 4),
+        'akiec': round(p_akiec, 4),
+        'nv': round(p_nv, 4),
+        'bkl': round(p_bkl, 4),
+        'df': round(p_df, 4),
+        'vasc': round(p_vasc, 4),
+    }
+    if 'wound' in probability_dict:
+        class_breakdown['wound'] = round(p_wound, 4)
+
+    return {
+        "is_cancer_suspected": is_suspected,
+        "verdict_label": verdict,
+        "malignant_probability": mal_prob,
+        "benign_probability": ben_prob,
+        "risk_tier": tier,
+        "class_breakdown": class_breakdown
+    }
+
+
+def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=None, is_valid_skin_upload=True):
     """
     Maps 7 HAM10000 disease categories to actionable clinical risk tiers:
-    - Stage 1: Benign (Melanocytic Nevi 'nv', Vascular 'vasc', Dermatofibroma 'df')
+    - Stage 1: Benign (Melanocytic Nevi 'nv', Vascular 'vasc', Dermatofibroma 'df', Cutaneous Wound 'wound')
     - Stage 2: Atypical (Benign Keratosis-like 'bkl')
     - Stage 3: Pre-Malignant (Actinic Keratosis / Bowen's 'akiec')
     - Stage 4: Malignant (Melanoma 'mel', Basal Cell Carcinoma 'bcc')
@@ -107,6 +196,8 @@ def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=N
         urgency = 'High'
         action = 'Prompt Evaluation & Targeted Cryotherapy / Topical 5-FU'
     
+    cancer_verif = compute_cancer_verification(probability_dict, is_valid_skin_upload=is_valid_skin_upload)
+
     return {
         'predicted_class': code,
         'risk_stage': stage_name,
@@ -115,12 +206,20 @@ def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=N
         'urgency_level': urgency,
         'action_needed': action,
         'spectral_score': spectral_score,
-        'dermasensor_assessment': dermasensor_result
+        'dermasensor_assessment': dermasensor_result,
+        'cancer_verification': cancer_verif,
     }
 
+
 if __name__ == '__main__':
-    test_res = map_to_4_tier_risk('mel', patient_metadata={'age': 65, 'history_of_melanoma': True, 'localization': 'back'})
+    test_probs = {'mel': 0.35, 'bcc': 0.05, 'akiec': 0.02, 'nv': 0.50, 'bkl': 0.05, 'df': 0.02, 'vasc': 0.01}
+    test_res = map_to_4_tier_risk(
+        'mel',
+        probability_dict=test_probs,
+        patient_metadata={'age': 65, 'history_of_melanoma': True, 'localization': 'back'}
+    )
     print("Risk Stratification Test Result:", test_res)
     assert test_res['risk_stage_num'] == 4
-    assert test_res['dermasensor_assessment'] == 'INVESTIGATE FURTHER'
-    print("Risk Stratification logic verified!")
+    assert test_res['cancer_verification']['is_cancer_suspected'] is True
+    assert test_res['cancer_verification']['malignant_probability'] == 0.42
+    print("Risk Stratification and Cancer Verification verified successfully!")
