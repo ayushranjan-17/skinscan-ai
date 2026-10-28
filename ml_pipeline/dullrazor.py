@@ -19,83 +19,113 @@ except ImportError:
 import numpy as np
 
 
-def _line_kernel(length: int, angle_deg: float) -> np.ndarray:
-    """1-pixel-wide straight line structuring element of the given length and orientation."""
-    k = np.zeros((length, length), np.uint8)
-    c = length // 2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Structure-preserving DullRazor (v3)
+#   1. Rough lesion segmentation (vignetting-corrected Otsu) -> lesion is protected.
+#   2. Thin dark ridges: black-hat at 7x7 and 11x11.
+#   3. Adaptive threshold = median + 3 x MAD of the black-hat on surrounding skin (picks up faint hair
+#      on bright skin, ignores normal skin texture); stricter threshold inside the lesion.
+#   4. Oriented line opening (12 directions, 31 px): keeps only structures with a long straight run.
+#   5. Structures confined to the lesion are treated as lesion texture unless they contain a very long
+#      (63 px) straight run; hairs that cross the lesion continue onto skin and are kept.
+#   6. Dermatoscope ruler / scale marks in the image border are removed too.
+#   7. Telea inpainting at the original resolution; images with almost no hair are left untouched.
+# Benchmark: scripts/evaluate_hair_removal.py (synthetic hair at 4 contrast levels, see README there).
+# ─────────────────────────────────────────────────────────────────────────────
+def _line_kernel(length, angle_deg):
+    k = np.zeros((length, length), np.uint8); c = length // 2
     dx, dy = np.cos(np.deg2rad(angle_deg)) * c, np.sin(np.deg2rad(angle_deg)) * c
     cv2.line(k, (int(round(c - dx)), int(round(c - dy))), (int(round(c + dx)), int(round(c + dy))), 1, 1)
     return k
 
+def _line_open(binary, length, n_angles=12):
+    out = np.zeros_like(binary)
+    for a in np.arange(0, 180, 180.0 / n_angles):
+        out |= cv2.morphologyEx(binary, cv2.MORPH_OPEN, _line_kernel(length, a))
+    return out
 
-def apply_dullrazor(
-    img_bgr: np.ndarray,
-    inpaint_radius: int = 3,
-    thresh: int = 14,
-    line_len: int = 31,
-    n_angles: int = 12,
-    min_len: int = 30,
-    min_coverage: float = 0.0015,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Structure-preserving DullRazor (oriented line-opening variant).
+def lesion_mask(gray):
+    """Rough lesion segmentation used only to protect lesion texture from hair masking.
+    1) remove dermatoscope vignetting by dividing by a very smooth illumination estimate,
+    2) Otsu on the darker-than-skin map, 3) keep the most central large component not hugging the border."""
+    h, w = gray.shape
+    g = gray.astype(np.float32) + 1.0
+    illum = cv2.GaussianBlur(g, (0, 0), max(h, w) / 6.0)
+    dark = np.clip((1.0 - g / illum) * 255.0 + 128.0, 0, 255).astype(np.uint8)
+    dark = cv2.GaussianBlur(dark, (0, 0), 5)
+    _, m = cv2.threshold(dark, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    n, lab, st, cen = cv2.connectedComponentsWithStats(m)
+    best, best_score = 0, 0.0
+    for k in range(1, n):
+        x, y, ww, hh, area = st[k]
+        if area < 0.003 * h * w: continue
+        touches = (x == 0) + (y == 0) + (x + ww >= w) + (y + hh >= h)
+        dist = np.hypot(cen[k, 0] - w / 2, cen[k, 1] - h / 2) / np.hypot(w / 2, h / 2)
+        score = area * (1 - dist) / (1 + touches)
+        if score > best_score: best, best_score = k, score
+    if best == 0: return np.zeros_like(gray, bool)
+    les = (lab == best).astype(np.uint8)
+    les = cv2.morphologyEx(les, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25)))
+    return cv2.dilate(les, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))) > 0
 
-    Classic DullRazor (Lee et al., 1997) marks every thin dark structure as hair, so it also erases
-    pigment network, dots and globules inside the lesion — the features dermatologists use. This version:
-      1. Black-hat (11x11) on gray level -> candidate thin dark structures (classic DullRazor step).
-      2. Morphological opening of the candidates with 31-px line elements in 12 orientations: only
-         structures that contain a long straight run survive (hair). Pigment-network meshes, dots and
-         globules contain no such run and are rejected.
-      3. Constrained reconstruction (3x3) restores hair width/curvature; components spanning < 30 px dropped.
-      4. Hair-presence gate: if < 0.15 % of the image is hair, the image is returned unchanged.
-      5. Telea inpainting of the dilated hair mask at the original resolution.
-    Processing is done at <= 600 px so kernel sizes are resolution independent.
 
-    Synthetic-hair benchmark (scripts/evaluate_hair_removal.py, 150 cases on HAM10000 test images):
-    hair Dice 0.865 vs 0.607 (classic) and 0.377 (previous multi-angle version); restoration PSNR
-    38.5 dB vs 35.9 / 26.7 dB; lesion pixels altered on hair-free images 1.3 % vs 7.2 % / 9.3 %.
-
-    Returns: (hair_removed_image_bgr, binary_hair_mask)
-    """
-    if cv2 is None or img_bgr is None or img_bgr.size == 0:
-        mask = (
-            np.zeros((img_bgr.shape[0], img_bgr.shape[1]), dtype=np.uint8)
-            if img_bgr is not None
-            else np.zeros((1, 1), dtype=np.uint8)
-        )
-        return img_bgr, mask
-
+def apply_dullrazor(img_bgr, inpaint_radius=3, k_noise=3.0, line_len=31, lesion_line_len=45, min_coverage=0.0005, remove_ruler=True):
     h, w = img_bgr.shape[:2]
     s = min(1.0, 600.0 / max(h, w))
     work = cv2.resize(img_bgr, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA) if s < 1 else img_bgr
     gray = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY)
-
-    # 1. Classic DullRazor candidate map
-    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11)))
-    cand = (blackhat > thresh).astype(np.uint8)
-
-    # 2. Oriented line opening: keep only structures with a long straight run
-    lines = np.zeros_like(cand)
-    for a in np.arange(0, 180, 180.0 / n_angles):
-        lines |= cv2.morphologyEx(cand, cv2.MORPH_OPEN, _line_kernel(line_len, a))
-
-    # 3. Constrained reconstruction + minimum span
+    les = lesion_mask(gray)
+    # thin dark ridges at two widths (fine vellus hair, thicker terminal hair)
+    bh = np.maximum(cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))),
+                    cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))))
+    bh = cv2.GaussianBlur(bh, (3, 3), 0)
+    # adaptive threshold from the noise level of the surrounding skin (robust: median + k * MAD)
+    skin = bh[~les] if (~les).sum() > 1000 else bh.ravel()
+    med = np.median(skin); mad = np.median(np.abs(skin - med)) * 1.4826 + 1e-6
+    t_skin = max(4.0, med + k_noise * mad)
+    t_les = max(8.0, t_skin * 1.3)                                    # stricter inside the lesion
+    cand_skin = ((bh > t_skin) & ~les).astype(np.uint8)
+    cand_les = ((bh > t_les) & les).astype(np.uint8)
+    # keep structures that contain a long straight run (hair); pigment network and dots do not
+    lines = _line_open(cand_skin, line_len) | _line_open(cand_les, lesion_line_len)
+    cand = cand_skin | cand_les
     mask = cv2.dilate(lines, np.ones((3, 3), np.uint8)) & cand
-    n, lab, st, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    span = np.maximum(st[:, cv2.CC_STAT_WIDTH], st[:, cv2.CC_STAT_HEIGHT])
-    span[0] = 0
-    mask = (span >= min_len)[lab].astype(np.uint8) * 255
-
-    # 4. Hair-presence gate
-    if mask.mean() / 255.0 < min_coverage:
+    # group pieces of the same hair that are separated by short low-contrast gaps (e.g. at the lesion edge)
+    _, lab = cv2.connectedComponents(cv2.dilate(mask, np.ones((9, 9), np.uint8)), connectivity=8)
+    lab = lab * (mask > 0)
+    n = lab.max() + 1
+    st = np.zeros((n, 5), np.int64)
+    ys, xs = np.nonzero(lab)
+    if len(ys):
+        L = lab[ys, xs]
+        st[:, 4] = np.bincount(L, minlength=n)
+        for arr, i in ((xs, 2), (ys, 3)):
+            mx = np.full(n, -1); mn = np.full(n, 1 << 30)
+            np.maximum.at(mx, L, arr); np.minimum.at(mn, L, arr)
+            st[:, i] = np.where(mx >= 0, mx - mn + 1, 0)
+    span = np.maximum(st[:, cv2.CC_STAT_WIDTH], st[:, cv2.CC_STAT_HEIGHT]); span[0] = 0
+    # a structure lying (almost) entirely inside the lesion is lesion texture, not hair: hairs that cross
+    # the lesion always continue onto the surrounding skin
+    outside = np.bincount(lab[~les], minlength=n) / np.maximum(st[:, cv2.CC_STAT_AREA], 1)
+    # ...unless it contains a very long straight run (>= 2 x line_len), which pigment structures never do
+    very_long = np.bincount(lab[_line_open(cand, 2 * line_len + 1) > 0], minlength=n) > 0
+    mask = ((span >= line_len) & ((outside >= 0.25) | very_long))[lab].astype(np.uint8)
+    # dermatoscope ruler / scale marks: short, high-contrast straight bars in the outer 12 % border band
+    bw = int(0.12 * min(gray.shape))
+    border = np.zeros_like(mask); border[:bw] = 1; border[-bw:] = 1; border[:, :bw] = 1; border[:, -bw:] = 1
+    ruler = _line_open(((bh > 25) & (border > 0)).astype(np.uint8), 15)
+    if remove_ruler:
+        mask = mask | (cv2.dilate(ruler, np.ones((3, 3), np.uint8)) & (bh > 12))
+    mask = mask.astype(np.uint8) * 255
+    if mask.mean() / 255 < min_coverage:
         return img_bgr.copy(), np.zeros((h, w), np.uint8)
-
-    # 5. Inpaint at original resolution
     mask = cv2.dilate(mask, np.ones((3, 3), np.uint8))
-    if s < 1:
-        mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
-    radius = max(inpaint_radius, int(round(inpaint_radius / s)))
-    return cv2.inpaint(img_bgr, mask, radius, cv2.INPAINT_TELEA), mask
+    if s < 1: mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+    r = max(inpaint_radius, int(round(inpaint_radius / s)))
+    return cv2.inpaint(img_bgr, mask, r, cv2.INPAINT_TELEA), mask
 
 
 def calculate_ita(img_bgr: np.ndarray) -> float:
@@ -213,18 +243,8 @@ def calibrate_asian_skin_tone(img_bgr: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
 
 
-def check_skin_and_quality(img_bgr: np.ndarray) -> tuple[bool, float, float, float, str]:
-    """
-    Real-World Skin & Quality Verification Gate (OOD Check):
-    1. Inclusive Asian / South Asian Skin Chromaticity Check (YCrCb + HSV)
-    2. Blur & Focus Check (Laplacian Variance)
-    
-    Returns: (is_valid, skin_coverage_pct, blur_score, ita, status_message)
-    """
-    if cv2 is None or img_bgr is None or img_bgr.size == 0:
-        return False, 0.0, 0.0, 0.0, "Invalid image data"
-
-    h, w = img_bgr.shape[:2]
+def _skin_pixels(img_bgr: np.ndarray) -> np.ndarray:
+    """YCrCb + HSV skin-colour test (ranges widened for Asian / South Asian skin tones)."""
     # YCrCb ranges widened for Asian/South Asian skin tones: Cr in [130, 180], Cb in [75, 135]
     ycrcb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YCrCb)
     skin_ycrcb = (
@@ -243,30 +263,63 @@ def check_skin_and_quality(img_bgr: np.ndarray) -> tuple[bool, float, float, flo
         & (hsv[:, :, 2] >= 40)
     )
 
-    combined_skin = skin_ycrcb | skin_hsv
+    return skin_ycrcb | skin_hsv
+
+
+def check_skin_and_quality(img_bgr: np.ndarray) -> tuple[bool, float, float, float, str]:
+    """
+    Real-World Skin & Quality Verification Gate (OOD Check):
+    1. Inclusive Asian / South Asian Skin Chromaticity Check (YCrCb + HSV)
+    2. Blur & Focus Check (Laplacian Variance)
+    
+    Returns: (is_valid, skin_coverage_pct, blur_score, ita, status_message)
+    """
+    if cv2 is None or img_bgr is None or img_bgr.size == 0:
+        return False, 0.0, 0.0, 0.0, "Invalid image data"
+
+    h, w = img_bgr.shape[:2]
+    original_bgr = img_bgr
+    # Dermatoscopes and phones add strong colour casts (e.g. blue-grey polarised light), so the skin-colour
+    # test runs on a white-balanced copy (Shades of Gray) rather than on the raw pixels.
+    img_bgr = apply_shades_of_gray(img_bgr, p=6)
+    # Skin pixels in the raw image OR in a white-balanced copy (dermatoscopes and phones can add strong
+    # colour casts, e.g. blue-grey polarised light, that hide genuine skin colour)
+    combined_skin = _skin_pixels(original_bgr) | _skin_pixels(img_bgr)
     skin_coverage_pct = float(np.mean(combined_skin) * 100.0)
 
-    # Blur check
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    # Blur check: Laplacian variance measured at a fixed working size (longest side 600 px), because the
+    # score depends on resolution. Dermoscopy images are naturally smooth: on HAM10000 test images the
+    # score is ~20-100, while the same images blurred with a Gaussian of sigma 1-2 px drop to ~2-12.
+    gray = cv2.cvtColor(original_bgr, cv2.COLOR_BGR2GRAY)
+    sc = min(1.0, 600.0 / max(h, w))
+    if sc < 1.0:
+        gray = cv2.resize(gray, (round(w * sc), round(h * sc)), interpolation=cv2.INTER_AREA)
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
     # ITA
-    ita = calculate_ita(img_bgr)
+    ita = calculate_ita(original_bgr)
     fitzpatrick = classify_fitzpatrick(ita)
 
     is_valid = True
     reasons = []
 
-    if skin_coverage_pct < 25.0:
+    # Non-skin photos (objects, documents, sky) score ~0 %; dermoscopy under coloured light can score 25-40 %.
+    if skin_coverage_pct < 15.0:
         is_valid = False
-        reasons.append(f"Insufficient skin pixels ({skin_coverage_pct:.1f}% < 25%)")
+        reasons.append(f"Insufficient skin pixels ({skin_coverage_pct:.1f}% < 15%)")
 
-    if blur_score < 45.0:
+    BLUR_REJECT, BLUR_WARN = 6.0, 15.0
+    soft_focus = False
+    if blur_score < BLUR_REJECT:
         is_valid = False
-        reasons.append(f"Image is out of focus / blurry (blur index {blur_score:.1f} < 45.0)")
+        reasons.append(f"Image is out of focus / blurry (blur index {blur_score:.1f} < {BLUR_REJECT})")
+    elif blur_score < BLUR_WARN:
+        soft_focus = True
 
     if is_valid:
         status_msg = f"Passed Skin & Quality Verification (Fitzpatrick Type {fitzpatrick}, ITA {ita:.1f}°)"
+        if soft_focus:
+            status_msg += f" — note: slightly soft focus (blur index {blur_score:.1f}); a sharper photo is recommended"
     else:
         status_msg = "Verification Failed: " + ", ".join(reasons)
 
