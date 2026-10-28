@@ -34,7 +34,7 @@ except ImportError:
 # ─────────────────────────────────────────────────────────
 MODEL_WEIGHTS_PATH = os.environ.get(
     "MODEL_WEIGHTS_PATH",
-    os.path.join(os.path.dirname(__file__), "..", "models", "skinscan_densenet121_v2.pth"),
+    os.path.join(os.path.dirname(__file__), "..", "models", "skinscan_densenet121_v4.pth"),
 )
 DEVICE = os.environ.get("DEVICE", "auto")  # "auto", "cpu", "cuda"
 PORT = int(os.environ.get("BACKEND_PORT", 8000))
@@ -110,7 +110,7 @@ def health():
     return {
         "status": "healthy",
         "model_loaded": engine.model_loaded if engine else False,
-        "model_version": "DenseNet121-MultiModal-FocalLoss-v2.0",
+        "model_version": "DenseNet121-MultiModal-v4-balanced-TTA",
         "device": str(engine.device) if engine else "unknown",
         "gpu_available": torch.cuda.is_available(),
         "gpu_name": (
@@ -170,7 +170,7 @@ async def analyze_lesion(
             status_code=503,
             detail={
                 "error": "Model weights not loaded",
-                "message": "Place skinscan_densenet121_v2.pth in the models/ directory and restart the server.",
+                "message": "Place skinscan_densenet121_v4.pth in the models/ directory and restart the server.",
             },
         )
 

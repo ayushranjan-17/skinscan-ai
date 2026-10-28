@@ -35,6 +35,34 @@ from ml_pipeline.risk_stratification import map_to_4_tier_risk, compute_cancer_v
 # CONSTANTS
 # ─────────────────────────────────────────────────────────
 CLASS_NAMES = ["mel", "bcc", "akiec", "bkl", "nv", "vasc", "df", "wound"]
+
+# ── v4 model settings (see paper, Sec. IV-E / Table VI) ──────────────────────────
+# Per-class log-probability offsets tuned on the VALIDATION set only (melanoma recall >= 0.80).
+# Test set (1,497 lesion-disjoint images): accuracy 77.3 %, balanced acc. 71.3 %, macro AUC 0.952.
+LOGIT_BIAS = np.array([1.0, 1.25, 1.75, 0.0, 0.0, 0.0, 1.5])
+# Hand-written ABCD/colour rules that re-weight the network output. They were never validated on the
+# test set, so they are OFF by default; the prediction is then exactly the evaluated v4 model.
+USE_HEURISTIC_FUSION = False
+
+
+def training_dullrazor(img_bgr: np.ndarray) -> np.ndarray:
+    """Classic DullRazor exactly as applied to the v3/v4 training images (9x9 black-hat, threshold 10,
+    Telea radius 2). The model input must match training; the structure-preserving version in
+    ml_pipeline/dullrazor.py is used for the displayed image and will be used for training from v5 on."""
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    bh = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
+    _, mask = cv2.threshold(bh, 10, 255, cv2.THRESH_BINARY)
+    return cv2.inpaint(img_bgr, mask, 2, cv2.INPAINT_TELEA)
+
+
+def gray_world(img_bgr: np.ndarray) -> np.ndarray:
+    """Gray-world colour constancy exactly as used when training v3/v4."""
+    f = img_bgr.astype(np.float32)
+    means = [f[:, :, i].mean() for i in range(3)]
+    g = sum(means) / 3.0
+    for i, m in enumerate(means):
+        f[:, :, i] = np.clip(f[:, :, i] * (g / (m + 1e-6)), 0, 255)
+    return f.astype(np.uint8)
 CLASS_FULL_NAMES = {
     "mel": "Melanoma",
     "bcc": "Basal Cell Carcinoma",
@@ -55,16 +83,8 @@ ICD10_CODES = {
     "df": "D23.9 - Benign neoplasm of skin, unspecified",
     "wound": "T14.1 - Open wound / Resolving Traumatic Cutaneous Scab",
 }
-LOCALIZATIONS = [
-    "back",
-    "lower extremity",
-    "trunk",
-    "upper extremity",
-    "abdomen",
-    "face",
-    "chest",
-    "scalp",
-]
+# One-hot order MUST equal the order used in training (SkinScan_Retrain_LeakFree.ipynb, Cell 5)
+LOCALIZATIONS = ["back", "face", "scalp", "chest", "abdomen", "upper extremity", "lower extremity", "trunk"]
 SEX_OPTIONS = ["male", "female", "other"]
 
 # ImageNet normalization for DenseNet121
@@ -167,7 +187,8 @@ class SkinScanInferenceEngine:
         if "model_state_dict" in state_dict:
             state_dict = state_dict["model_state_dict"]
 
-        use_bn = any("running_mean" in k for k in state_dict.keys())
+        # BatchNorm vs LayerNorm heads: check the head layers only (the DenseNet backbone always has BN stats)
+        use_bn = any(k.startswith(("metadata_branch", "tier2_classification_head")) and "running_mean" in k for k in state_dict)
         self.model = MultiModalDenseNetHybrid(
             num_classes=7, meta_dim=16, pretrained=False, use_batch_norm=use_bn
         ).to(self.device)
@@ -215,6 +236,10 @@ class SkinScanInferenceEngine:
         # 1. Melanin-resilient DullRazor hair removal
         hair_removed_bgr, hair_mask = apply_dullrazor(np_bgr)
 
+        # Model input: identical to the v4 training pipeline (classic DullRazor + gray-world, 224x224)
+        model_bgr = cv2.resize(gray_world(training_dullrazor(np_bgr)), (224, 224), interpolation=cv2.INTER_AREA)
+        self._last_model_rgb = model_bgr[:, :, ::-1].copy()
+
         # 2. Asian skin tone & illumination calibration
         calibrated_bgr = calibrate_asian_skin_tone(hair_removed_bgr)
         calibrated_rgb = calibrated_bgr[:, :, ::-1].copy()  # BGR → RGB
@@ -258,10 +283,11 @@ class SkinScanInferenceEngine:
         safe_age = max(0, min(age if isinstance(age, (int, float)) else 50, 100))
         meta[0] = safe_age / 100.0
         # Normalized duration
-        safe_duration = max(0, min(duration_months if isinstance(duration_months, (int, float)) else 6, 120))
-        meta[1] = safe_duration / 120.0
-        # Melanoma history flag
-        meta[2] = 1.0 if history_of_melanoma else 0.0
+        # Duration and melanoma history are NOT in HAM10000, so the model was trained with a constant 6/120
+        # and 0 here (leak-free encoding). Feeding user values would be out-of-distribution input; they are
+        # still recorded in the report and used by the risk-stratification rules, not by the network.
+        meta[1] = 6.0 / 120.0
+        meta[2] = 0.0
 
         # Sex one-hot (indices 3-5)
         sex_lower = sex.lower() if sex else "male"
@@ -727,7 +753,7 @@ class SkinScanInferenceEngine:
         """
         if not self.model_loaded:
             raise RuntimeError(
-                "Model not loaded. Place skinscan_densenet121_v2.pth in the models/ directory."
+                "Model not loaded. Place skinscan_densenet121_v4.pth in the models/ directory."
             )
 
         # 1. Preprocess image with upgraded Asian skin tone DullRazor & calibration
@@ -764,25 +790,10 @@ class SkinScanInferenceEngine:
             age, sex, localization, duration_months, history_of_melanoma
         )
 
-        # 5. Lesion-Focused Test-Time Augmentation (TTA) with 5 views
-        pil_orig = Image.fromarray(calibrated_rgb).resize((224, 224))
-        pil_hflip = Image.fromarray(np.fliplr(calibrated_rgb)).resize((224, 224))
-        pil_vflip = Image.fromarray(np.flipud(calibrated_rgb)).resize((224, 224))
-
-        h_c, w_c = calibrated_rgb.shape[:2]
-        ch70, cw70 = max(10, int(h_c * 0.70)), max(10, int(w_c * 0.70))
-        y0_70, x0_70 = (h_c - ch70) // 2, (w_c - cw70) // 2
-        pil_crop70 = Image.fromarray(
-            calibrated_rgb[y0_70 : y0_70 + ch70, x0_70 : x0_70 + cw70]
-        ).resize((224, 224))
-
-        ch85, cw85 = max(10, int(h_c * 0.85)), max(10, int(w_c * 0.85))
-        y0_85, x0_85 = (h_c - ch85) // 2, (w_c - cw85) // 2
-        pil_crop85 = Image.fromarray(
-            calibrated_rgb[y0_85 : y0_85 + ch85, x0_85 : x0_85 + cw85]
-        ).resize((224, 224))
-
-        views = [pil_orig, pil_hflip, pil_vflip, pil_crop70, pil_crop85]
+        # 5. Test-time augmentation: identity + horizontal + vertical + both flips (as in the v4 evaluation)
+        m_rgb = self._last_model_rgb
+        views = [Image.fromarray(np.ascontiguousarray(v)) for v in
+                 (m_rgb, np.fliplr(m_rgb), np.flipud(m_rgb), np.flipud(np.fliplr(m_rgb)))]
         tta_probs_list = []
         tta_tier1_list = []
 
@@ -854,7 +865,7 @@ class SkinScanInferenceEngine:
         else:
             # 7. Hybrid Probability Fusion
             # Fuse DenseNet121 deep activations with genuine OpenCV dermatoscopy priors & Stolz ABCD clinical rules
-            fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0))
+            fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0)) + LOGIT_BIAS
             fused_logits = np.append(fused_logits, -5.0)  # index 7 = 'wound'
             
             tds = abcd.get("totalDermoscopyScore", 3.0)
@@ -864,7 +875,10 @@ class SkinScanInferenceEngine:
             is_red = "Erythematous Red" in colors or "Reactive Erythema" in colors
             is_wound_case = abcd.get("isWound", False) or (lesion_type or "").lower() == "wound"
             
-            if is_wound_case:
+            if not USE_HEURISTIC_FUSION:
+                if is_wound_case:
+                    fused_logits[7] += 3.5  # user explicitly marked the upload as a wound
+            elif is_wound_case:
                 fused_logits[7] += 3.5  # wound
                 fused_logits[0] -= 2.0   # suppress melanoma false positive
             elif is_red and not is_dark and not is_blue and abcd.get("asymmetry", 0.5) < 0.6:
@@ -921,8 +935,9 @@ class SkinScanInferenceEngine:
             assert self.model is not None, "Model not loaded"
             self.model.eval()
             target_cam_idx = 4 if predicted_code == "wound" else min(predicted_idx, 6)
+            model_tensor = cast(torch.Tensor, self.transform(Image.fromarray(self._last_model_rgb))).unsqueeze(0).to(self.device)
             gradcam_b64 = self.generate_gradcam(
-                img_tensor.detach().clone().requires_grad_(True),
+                model_tensor.requires_grad_(True),
                 meta_tensor.detach().clone(),
                 target_cam_idx,
             )
@@ -1009,7 +1024,7 @@ class SkinScanInferenceEngine:
                 "gradcam": gradcam_b64,
             },
             "analyzedAt": __import__("datetime").datetime.now().isoformat(),
-            "modelVersion": "DenseNet121-MultiModal-FocalLoss-v2.0",
+            "modelVersion": "DenseNet121-MultiModal-v4-balanced-TTA",
             "imagePattern": predicted_code,
         }
 
