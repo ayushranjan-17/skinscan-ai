@@ -213,7 +213,7 @@ class SkinScanInferenceEngine:
         orig_b64 = self._numpy_to_base64(np_rgb)
 
         # 1. Melanin-resilient DullRazor hair removal
-        hair_removed_bgr, hair_mask = apply_dullrazor(np_bgr, inpaint_radius=4)
+        hair_removed_bgr, hair_mask = apply_dullrazor(np_bgr)
 
         # 2. Asian skin tone & illumination calibration
         calibrated_bgr = calibrate_asian_skin_tone(hair_removed_bgr)
