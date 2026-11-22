@@ -12,6 +12,61 @@ const TABS = [
   { id: 'sdg', label: 'SDG goals' },
 ];
 
+const ROC_COLORS = ['#E5645A', '#E8A33D', '#EBC95A', '#34C38F', '#4FD1E8', '#A77FDB', '#4A9FE0'];
+
+function RocChart({ classes, active }) {
+  const W = 520;
+  const H = 400;
+  const pad = { l: 52, r: 16, t: 16, b: 48 };
+  const x = (v) => pad.l + v * (W - pad.l - pad.r);
+  const y = (v) => H - pad.b - v * (H - pad.t - pad.b);
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const on = (code) => active === null || active === code;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="ROC curves, one line per class">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#1F2E54" />
+          <line x1={x(t)} x2={x(t)} y1={pad.t} y2={H - pad.b} stroke="#1F2E54" />
+          <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="12" fill="#8B9BB4">
+            {t}
+          </text>
+          <text x={x(t)} y={H - pad.b + 18} textAnchor="middle" fontSize="12" fill="#8B9BB4">
+            {t}
+          </text>
+        </g>
+      ))}
+      <line x1={x(0)} y1={y(0)} x2={x(1)} y2={y(1)} stroke="#4A5568" strokeDasharray="5 5" />
+      {classes.map(
+        (c, i) =>
+          c.roc && (
+            <polyline
+              key={c.code}
+              points={c.roc.map(([f, t]) => `${x(f)},${y(t)}`).join(' ')}
+              fill="none"
+              stroke={ROC_COLORS[i]}
+              strokeWidth={on(c.code) ? 2.5 : 1.5}
+              strokeLinejoin="round"
+              opacity={on(c.code) ? 1 : 0.2}
+            />
+          )
+      )}
+      <text x={(pad.l + W - pad.r) / 2} y={H - 8} textAnchor="middle" fontSize="12" fill="#8B9BB4">
+        False positive rate
+      </text>
+      <text
+        transform={`translate(14 ${(pad.t + H - pad.b) / 2}) rotate(-90)`}
+        textAnchor="middle"
+        fontSize="12"
+        fill="#8B9BB4"
+      >
+        True positive rate
+      </text>
+    </svg>
+  );
+}
+
 function NotEvaluated({ what }) {
   return (
     <div className="rounded-xl border border-dashed border-derma-borderLight p-8 text-center">
@@ -28,9 +83,21 @@ function NotEvaluated({ what }) {
 
 export default function ResearchMetricsDashboard() {
   const [metricTab, setMetricTab] = useState('confusion');
+  const [activeClass, setActiveClass] = useState(null);
   const evaluated = metrics.status === 'evaluated';
   const classes = metrics.classes;
   const cm = metrics.confusion_matrix;
+  const hasRoc = classes.some((c) => c.roc);
+  const comparisonRows = [
+    {
+      name: 'SkinScan v4 (DenseNet121 + patient data)',
+      accuracy: metrics.overall_accuracy,
+      malignant_recall: metrics.malignant_sensitivity,
+      auc: metrics.macro_auc,
+      source: 'This project',
+    },
+    ...metrics.comparison,
+  ];
 
   return (
     <div className="glass-panel p-6 sm:p-8 rounded-xl space-y-6">
@@ -175,26 +242,41 @@ export default function ResearchMetricsDashboard() {
         (!evaluated || metrics.macro_auc == null ? (
           <NotEvaluated what="ROC-AUC" />
         ) : (
-          <div className="p-6 bg-derma-bg/80 rounded-xl border border-derma-border space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-slate-50">
-                Area under the ROC curve, one class against the rest
-              </h3>
+          <div className="p-6 bg-derma-bg/80 rounded-xl border border-derma-border space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-50">
+                  ROC curves, each class against the rest
+                </h3>
+                <p className="text-sm text-derma-muted">
+                  The closer a curve hugs the top-left corner, the better. The dashed line is
+                  guessing. Hover a class on the right to isolate its curve.
+                </p>
+              </div>
               <span className="px-3 py-1.5 rounded-xl bg-derma-surface text-derma-accent border border-derma-border font-mono text-xs font-semibold">
                 Macro AUC {dec(metrics.macro_auc)}
               </span>
             </div>
-            <ul className="grid sm:grid-cols-2 gap-2">
-              {classes.map((c) => (
-                <li
-                  key={c.code}
-                  className="flex items-center justify-between rounded-xl bg-derma-card border border-derma-border px-3 py-2 text-sm"
-                >
-                  <span className="text-slate-200">{c.name}</span>
-                  <span className="font-mono text-derma-accent">{dec(c.auc)}</span>
-                </li>
-              ))}
-            </ul>
+
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] gap-6 items-center">
+              {hasRoc && <RocChart classes={classes} active={activeClass} />}
+              <ul className="space-y-2" onMouseLeave={() => setActiveClass(null)}>
+                {classes.map((c, i) => (
+                  <li
+                    key={c.code}
+                    onMouseEnter={() => setActiveClass(c.code)}
+                    className="flex items-center gap-3 rounded-xl bg-derma-card border border-derma-border px-3 py-2 text-sm"
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: ROC_COLORS[i] }}
+                    />
+                    <span className="text-slate-200 flex-1">{c.name}</span>
+                    <span className="font-mono text-slate-50">{dec(c.auc)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         ))}
 
@@ -202,29 +284,40 @@ export default function ResearchMetricsDashboard() {
         (metrics.comparison.length === 0 ? (
           <NotEvaluated what="The comparison against other models" />
         ) : (
-          <div className="bg-derma-bg/80 p-5 rounded-xl border border-derma-border overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-derma-accent">
-                <tr>
-                  <th className="p-3">Model</th>
-                  <th className="p-3">Accuracy</th>
-                  <th className="p-3">Malignant recall</th>
-                  <th className="p-3">AUC</th>
-                  <th className="p-3">Source</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-derma-border/70 text-slate-300">
-                {metrics.comparison.map((m) => (
-                  <tr key={m.name}>
-                    <td className="p-3 font-semibold text-slate-50">{m.name}</td>
-                    <td className="p-3 font-mono">{pct(m.accuracy)}</td>
-                    <td className="p-3 font-mono">{pct(m.malignant_recall)}</td>
-                    <td className="p-3 font-mono">{dec(m.auc)}</td>
-                    <td className="p-3 text-derma-muted">{m.source}</td>
+          <div className="bg-derma-bg/80 p-5 rounded-xl border border-derma-border space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-derma-accent">
+                  <tr>
+                    <th className="p-3">Model</th>
+                    <th className="p-3">Accuracy</th>
+                    <th className="p-3">Melanoma + BCC caught (top prediction)</th>
+                    <th className="p-3">Macro AUC</th>
+                    <th className="p-3">How it was built</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-derma-border/70 text-slate-300">
+                  {comparisonRows.map((m, i) => (
+                    <tr key={m.name} className={i === 0 ? 'bg-derma-card text-slate-50' : ''}>
+                      <td className={`p-3 ${i === 0 ? 'font-semibold text-derma-accent' : 'font-medium'}`}>
+                        {m.name}
+                      </td>
+                      <td className="p-3 font-mono">{pct(m.accuracy)}</td>
+                      <td className="p-3 font-mono">{pct(m.malignant_recall)}</td>
+                      <td className="p-3 font-mono">{dec(m.auc)}</td>
+                      <td className="p-3 text-derma-muted">{m.source}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-sm text-derma-muted">
+              Every row is scored on the same {metrics.n_test} test images. The baselines are
+              trained on the remaining lesions with balanced class weights, which pushes them to
+              guess the rare cancer classes more often. That can raise the &quot;caught&quot; column
+              while lowering accuracy, so macro AUC is the fairer comparison. This table shows what
+              the image and the fine-tuning add; it is not a ranking against published systems.
+            </p>
           </div>
         ))}
 

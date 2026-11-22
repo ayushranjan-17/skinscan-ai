@@ -5,11 +5,12 @@ Calculates Sensitivity (Recall), Specificity, Precision, F1-Score, and Multi-Cla
 
 import numpy as np
 try:
-    from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+    from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 except ImportError:
     classification_report = None
     confusion_matrix = None
     roc_auc_score = None
+    roc_curve = None
 
 def calculate_clinical_metrics(y_true, y_pred, y_prob):
     """
@@ -84,8 +85,17 @@ def write_model_metrics_json(metrics, y_true, y_prob, dataset, model, path='src/
                 auc = float(roc_auc_score((np.asarray(y_true) == i).astype(int), np.asarray(y_prob)[:, i]))
             except ValueError:
                 pass
+        roc = None
+        if roc_curve is not None:
+            try:
+                fpr, tpr, _ = roc_curve((np.asarray(y_true) == i).astype(int), np.asarray(y_prob)[:, i])
+                roc = [[round(float(g), 4), round(float(np.interp(g, fpr, tpr)), 4)]
+                       for g in np.linspace(0, 1, 101)]
+            except ValueError:
+                pass
         classes.append({'code': code, 'name': name, 'recall': row.get('recall'),
-                        'precision': row.get('precision'), 'f1': row.get('f1-score'), 'auc': auc})
+                        'precision': row.get('precision'), 'f1': row.get('f1-score'), 'auc': auc,
+                        'roc': roc})
 
     out = {
         'status': 'evaluated',
