@@ -2,10 +2,181 @@
  * SkinScan AI — Backend API Client
  *
  * Connects the React frontend to the FastAPI backend for real ML inference.
+ * Manages SQLite JWT/Bearer token sessions, persistent scan history, and HITL feedback.
  * Falls back gracefully to client-side demo mode if backend is offline.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// ─────────────────────────────────────────────────────────
+// AUTH & SESSION STATE HELPERS
+// ─────────────────────────────────────────────────────────
+
+export function getToken() {
+  return localStorage.getItem('skinscan_auth_token') || null;
+}
+
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem('skinscan_auth_token', token);
+  } else {
+    localStorage.removeItem('skinscan_auth_token');
+  }
+}
+
+export function getUser() {
+  const raw = localStorage.getItem('skinscan_user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setUser(user) {
+  if (user) {
+    localStorage.setItem('skinscan_user', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('skinscan_user');
+  }
+}
+
+export function clearAuth() {
+  setToken(null);
+  setUser(null);
+}
+
+// ─────────────────────────────────────────────────────────
+// AUTHENTICATION API
+// ─────────────────────────────────────────────────────────
+
+export async function authRegister({ name, email, password, role = 'clinician' }) {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password, role }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const errorMsg = typeof data.detail === 'string' ? data.detail : 'Registration failed';
+    throw new Error(errorMsg);
+  }
+  setToken(data.token);
+  setUser(data.user);
+  return data;
+}
+
+export async function authLogin({ email, password }) {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const errorMsg = typeof data.detail === 'string' ? data.detail : 'Invalid email or password';
+    throw new Error(errorMsg);
+  }
+  setToken(data.token);
+  setUser(data.user);
+  return data;
+}
+
+export async function authGetMe() {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      clearAuth();
+      return null;
+    }
+    const data = await response.json();
+    setUser(data.user);
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// SCAN HISTORY & PERSISTENCE
+// ─────────────────────────────────────────────────────────
+
+export async function getScans() {
+  const token = getToken();
+  if (!token) return [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/scans`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return data.scans || [];
+  } catch (err) {
+    console.warn('[SkinScan API] Failed to fetch scan history:', err);
+    return [];
+  }
+}
+
+export async function deleteScan(scanId) {
+  const token = getToken();
+  if (!token) throw new Error('Authentication required to delete scans');
+  const response = await fetch(`${API_BASE_URL}/scans/${scanId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed to delete scan: HTTP ${response.status}`);
+  }
+  return await response.json();
+}
+
+// ─────────────────────────────────────────────────────────
+// HITL BIOPSY FEEDBACK & MLOPS RETRAINING QUEUE
+// ─────────────────────────────────────────────────────────
+
+export async function submitBiopsyFeedback(scanId, { confirmedBiopsyLabel, clinicianNotes = '' }) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE_URL}/scans/${scanId}/feedback`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({
+      confirmed_biopsy_label: confirmedBiopsyLabel,
+      clinician_notes: clinicianNotes,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.detail || 'Failed to submit biopsy feedback');
+  }
+  return data;
+}
+
+export async function getRetrainQueue() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/mlops/retrain-queue`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (err) {
+    console.warn('[SkinScan API] Failed to fetch retrain queue:', err);
+    return { queued_count: 0, model_version: 'v4 (frozen)', cases: [] };
+  }
+}
+
+export async function exportRetrainQueue() {
+  const response = await fetch(`${API_BASE_URL}/mlops/export-queue`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.json();
+}
 
 // ─────────────────────────────────────────────────────────
 // HEALTH CHECK
@@ -48,15 +219,7 @@ export async function checkBackendHealth() {
 
 /**
  * Send an image + patient metadata to the backend for real ML inference.
- *
- * @param {File|Blob} imageFile - The skin lesion image file
- * @param {Object} patientData - Patient metadata
- * @param {number} patientData.age
- * @param {string} patientData.sex
- * @param {string} patientData.localization
- * @param {number} patientData.durationMonths
- * @param {boolean} patientData.historyOfMelanoma
- * @returns {Promise<{success: boolean, result: Object|null, error: string|null, isRealInference: boolean}>}
+ * Automatically attaches Authorization header if user is signed in to persist scan.
  */
 export async function analyzeWithBackend(imageFile, patientData = {}) {
   try {
@@ -87,8 +250,16 @@ export async function analyzeWithBackend(imageFile, patientData = {}) {
     formData.append('doctor_preference', patientData.doctorPreference || 'auto');
     formData.append('lesion_type', patientData.lesionType || 'mole');
 
+    // Attach Bearer token if logged in (for SQLite persistence)
+    const headers = {};
+    const token = getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: 'POST',
+      headers,
       body: formData,
       signal: AbortSignal.timeout(30000), // 30s timeout for GPU inference
     });
@@ -141,6 +312,8 @@ export async function analyzeWithBackend(imageFile, patientData = {}) {
 function mapBackendResultToFrontend(backendResult) {
   return {
     id: backendResult.id,
+    scanId: backendResult.scan_id || null,
+    isPersisted: Boolean(backendResult.is_persisted),
     name: backendResult.name,
     shortName: backendResult.shortName || backendResult.name,
     code: backendResult.code,

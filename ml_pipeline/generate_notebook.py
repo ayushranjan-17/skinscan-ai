@@ -602,7 +602,7 @@ notebook = {
     "nbformat_minor": 2
 }
 
-output_path = "/Users/ravo/Desktop/Skin_csncer/notebooks/SkinScan_Colab_Training.ipynb"
+output_path = os.path.join(os.path.dirname(__file__), "..", "notebooks", "SkinScan_Colab_Training.ipynb")
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 with open(output_path, "w") as f:
     json.dump(notebook, f, indent=1)

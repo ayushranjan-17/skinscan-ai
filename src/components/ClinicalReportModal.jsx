@@ -1,4 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   X,
   Printer,
@@ -162,8 +164,52 @@ export default function ClinicalReportModal({
     );
   }
 
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!reportRef.current) return;
+    try {
+      setIsGeneratingPdf(true);
+      const element = reportRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#070B14',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`SkinScan_EHR_Report_${result.code || 'case'}.pdf`);
+    } catch (err) {
+      console.error('[SkinScan] PDF generation error:', err);
+      window.print();
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const reportId = `EHR-DS-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -188,11 +234,19 @@ export default function ClinicalReportModal({
           </div>
           <div className="flex items-center space-x-2">
             <button
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="px-4 py-1.5 bg-gradient-to-r from-derma-accent to-derma-teal hover:opacity-95 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-glow-cyan transition-all disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
+            </button>
+            <button
               onClick={handlePrint}
-              className="px-4 py-1.5 bg-derma-accent hover:bg-derma-accentHover text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-glow-cyan transition-all"
+              className="px-4 py-1.5 bg-derma-surface hover:bg-derma-card border border-derma-border text-slate-200 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all"
             >
               <Printer className="w-4 h-4" />
-              <span>Print / Save PDF</span>
+              <span>Print</span>
             </button>
             <button
               onClick={onClose}
@@ -483,7 +537,7 @@ export default function ClinicalReportModal({
               <strong className="text-white print:text-black">
                 Pre-Screening Model Backbone:{' '}
               </strong>
-              DenseNet121 (GAP 1024-d) + Random Forest Hybrid with Focal Loss
+              DenseNet121 + Metadata MLP Hybrid with Focal Loss
             </p>
             <p>
               <strong className="text-white print:text-black">Clinical Decision Rationale: </strong>

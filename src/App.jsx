@@ -9,6 +9,9 @@ import ResearchMetricsDashboard from './components/ResearchMetricsDashboard';
 import ClinicalReportModal from './components/ClinicalReportModal';
 import MlPipelineModal from './components/MlPipelineModal';
 import VerificationWorkflowCard from './components/VerificationWorkflowCard';
+import AuthModal from './components/AuthModal';
+import ScanHistoryDrawer from './components/ScanHistoryDrawer';
+import HitlFeedbackPanel from './components/HitlFeedbackPanel';
 import {
   StepProgressBar,
   AiProcessingAnimation,
@@ -18,7 +21,14 @@ import {
 } from './components/GuidedOnboarding';
 import { BENCHMARK_LESIONS } from './data/benchmarks';
 import { runSkinScanInference } from './utils/imageProcessing';
-import { analyzeWithBackend, checkBackendHealth, getBackendStatusLabel } from './utils/api';
+import {
+  analyzeWithBackend,
+  checkBackendHealth,
+  getBackendStatusLabel,
+  getUser,
+  authGetMe,
+  clearAuth,
+} from './utils/api';
 import {
   ShieldCheck,
   Activity,
@@ -70,10 +80,24 @@ export default function App() {
     gpuName: null,
   });
   const [uploadedFile, setUploadedFile] = useState(null); // raw File object for backend
+  const [backendError, setBackendError] = useState(null); // captured backend errors
 
-  // Check backend health on mount
+  // Authentication & Scan History state
+  const [currentUser, setCurrentUser] = useState(() => getUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+
+  const handleLogout = useCallback(() => {
+    clearAuth();
+    setCurrentUser(null);
+  }, []);
+
+  // Check backend health and session validity on mount
   useEffect(() => {
     checkBackendHealth().then(setBackendHealth);
+    authGetMe().then((u) => {
+      if (u) setCurrentUser(u);
+    });
   }, []);
 
   // Mark a step as completed
@@ -172,6 +196,7 @@ export default function App() {
   // Called when the AI processing animation finishes
   const handleProcessingComplete = useCallback(async () => {
     let result = null;
+    let failureDetail = null;
 
     // Try real backend first (if online and model loaded)
     if (backendHealth.online && backendHealth.modelLoaded && (uploadedFile || customImageSrc)) {
@@ -179,10 +204,17 @@ export default function App() {
       const apiResult = await analyzeWithBackend(imageSource, patientData);
       if (apiResult.success) {
         result = apiResult.result;
+        result.isRealInference = true;
+        setBackendError(null);
         console.log('[SkinScan] ✅ Real ML inference from backend');
       } else {
+        failureDetail = apiResult.error;
+        setBackendError(apiResult.error);
         console.warn('[SkinScan] Backend failed, falling back to demo:', apiResult.error);
       }
+    } else if (backendHealth.online && !backendHealth.modelLoaded) {
+      failureDetail = 'Model weights not loaded on backend server.';
+      setBackendError(failureDetail);
     }
 
     // Fallback to client-side benchmark/demo simulation
@@ -272,6 +304,10 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenPipeline={() => setIsPipelineModalOpen(true)}
         backendHealth={backendHealth}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenHistory={() => setIsHistoryDrawerOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -524,6 +560,39 @@ export default function App() {
                     />
                   )}
 
+                  {/* Real Inference vs Demo Mode Indicator Banner */}
+                  <div
+                    className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs font-semibold ${
+                      analysisResult.isRealInference
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                        : backendError
+                          ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+                          : 'bg-derma-surface/60 border-derma-border text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          analysisResult.isRealInference
+                            ? 'bg-emerald-400 animate-pulse'
+                            : backendError
+                              ? 'bg-amber-400'
+                              : 'bg-cyan-400'
+                        }`}
+                      />
+                      <span>
+                        {analysisResult.isRealInference
+                          ? `Live Backend ML Mode Active — DenseNet121 Multi-Modal Hybrid (${backendHealth.device || 'CPU/GPU'}) • Latency: ${analysisResult.inferenceTimeMs}ms`
+                          : backendError
+                            ? `Demo Fallback Mode: Backend returned error (${backendError}). Displaying validated reference profile.`
+                            : 'Demo Mode: Evaluated via validated HAM10000 benchmark case profile.'}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-900/80 border border-derma-border">
+                      {analysisResult.isRealInference ? 'PRODUCTION API' : 'CLIENT DEMO'}
+                    </span>
+                  </div>
+
                   <VerificationWorkflowCard
                     result={analysisResult}
                     customImageSrc={customImageSrc}
@@ -591,6 +660,13 @@ export default function App() {
                       <AbcdAnalysisCard result={analysisResult} />
                     </div>
                   </div>
+
+                  {/* Human-in-the-Loop Biopsy Ground Truth & Retraining Queue */}
+                  <HitlFeedbackPanel
+                    scanResult={analysisResult}
+                    currentUser={currentUser}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  />
 
                   {currentStep === 5 && (
                     <StepNavigation
@@ -675,6 +751,13 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Human-in-the-Loop Biopsy Ground Truth & Retraining Queue */}
+                  <HitlFeedbackPanel
+                    scanResult={analysisResult}
+                    currentUser={currentUser}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  />
 
                   <StepNavigation
                     currentStep={6}
@@ -819,6 +902,34 @@ export default function App() {
 
       {/* ML Pipeline & Architecture Modal */}
       <MlPipelineModal isOpen={isPipelineModalOpen} onClose={() => setIsPipelineModalOpen(false)} />
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthModalOpen(false);
+        }}
+      />
+
+      {/* Persistent Scan History Drawer */}
+      <ScanHistoryDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        currentUser={currentUser}
+        onOpenFeedback={(scan) => {
+          setAnalysisResult((prev) => ({
+            ...(prev || {}),
+            scanId: scan.id,
+            code: scan.confirmed_biopsy_label || (scan.predicted_class?.toLowerCase().includes('mel') ? 'mel' : 'nv'),
+            name: scan.predicted_class,
+            riskStage: scan.risk_stage,
+            spectralScore: scan.spectral_score,
+          }));
+          goToStep(5);
+        }}
+      />
     </div>
   );
 }

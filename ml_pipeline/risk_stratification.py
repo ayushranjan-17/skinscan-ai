@@ -179,22 +179,46 @@ def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=N
     # Clamp score to [1.0, 10.0]
     spectral_score = round(max(1.0, min(10.0, spectral_score)), 1)
     
-    # 4. DermaSensor Binary Clinical Triage Recommendation
-    dermasensor_result = 'INVESTIGATE FURTHER' if spectral_score >= 5.5 else 'MONITOR'
-    
-    # Ensure risk stage strictly matches calibrated score
-    if spectral_score >= 7.5 and stage_num < 4:
-        stage_num = 4
-        stage_name = 'Stage 4: Malignant'
-        risk_level = 'Malignant'
-        urgency = 'Critical'
-        action = 'Urgent Excisional Biopsy & Oncology Specialist Referral'
-    elif spectral_score >= 5.5 and stage_num < 3 and code not in ['wound']:
-        stage_num = 3
-        stage_name = 'Stage 3: Pre-Malignant'
-        risk_level = 'Pre-Malignant'
-        urgency = 'High'
-        action = 'Prompt Evaluation & Targeted Cryotherapy / Topical 5-FU'
+    # 4. Malignant-Probability Escalation Gate
+    p_mel = float(probability_dict.get('mel', 0.0)) if probability_dict else 0.0
+    p_bcc = float(probability_dict.get('bcc', 0.0)) if probability_dict else 0.0
+    p_akiec = float(probability_dict.get('akiec', 0.0)) if probability_dict else 0.0
+    mal_prob = p_mel + p_bcc + p_akiec
+
+    if code != 'wound' and mal_prob >= 0.25:
+        if p_mel >= 0.35 or mal_prob >= 0.40:
+            stage_num = 4
+            stage_name = 'Stage 4: Malignant'
+            risk_level = 'Malignant'
+            urgency = 'Critical'
+            spectral_score = round(max(spectral_score, 7.6), 1)
+            dermasensor_result = 'INVESTIGATE FURTHER'
+            action = 'Urgent Excisional Biopsy & Oncology Specialist Referral'
+        else:
+            stage_num = max(stage_num, 3)
+            stage_name = 'Stage 3: Pre-Malignant / Suspicious' if stage_num == 3 else stage_name
+            risk_level = 'Pre-Malignant / Suspicious' if stage_num == 3 else risk_level
+            urgency = 'High' if stage_num == 3 else urgency
+            spectral_score = round(max(spectral_score, 6.0), 1)
+            dermasensor_result = 'INVESTIGATE FURTHER'
+            action = 'Prompt Dermatoscopic Evaluation & Clinical Biopsy Recommended'
+    else:
+        # DermaSensor Binary Clinical Triage Recommendation
+        dermasensor_result = 'INVESTIGATE FURTHER' if spectral_score >= 5.5 else 'MONITOR'
+        
+        # Ensure risk stage strictly matches calibrated score
+        if spectral_score >= 7.5 and stage_num < 4:
+            stage_num = 4
+            stage_name = 'Stage 4: Malignant'
+            risk_level = 'Malignant'
+            urgency = 'Critical'
+            action = 'Urgent Excisional Biopsy & Oncology Specialist Referral'
+        elif spectral_score >= 5.5 and stage_num < 3 and code not in ['wound']:
+            stage_num = 3
+            stage_name = 'Stage 3: Pre-Malignant'
+            risk_level = 'Pre-Malignant'
+            urgency = 'High'
+            action = 'Prompt Evaluation & Targeted Cryotherapy / Topical 5-FU'
     
     cancer_verif = compute_cancer_verification(probability_dict, is_valid_skin_upload=is_valid_skin_upload)
 

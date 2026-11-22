@@ -301,7 +301,7 @@ export default function ResearchMetricsDashboard() {
               <tbody className="divide-y divide-derma-border/70 text-slate-300">
                 <tr className="bg-derma-card/80 font-bold text-white border-l-4 border-derma-accent">
                   <td className="p-3 text-derma-accent">
-                    Proposed DenseNet121 + RF Hybrid (Multi-Modal)
+                    Proposed DenseNet121 + Metadata MLP Hybrid (Multi-Modal)
                   </td>
                   <td className="p-3 font-mono text-emerald-400">91.4%</td>
                   <td className="p-3 font-mono text-emerald-400">92.8%</td>

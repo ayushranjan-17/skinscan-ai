@@ -12,12 +12,13 @@ Endpoints:
 import os
 import time
 import traceback
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 import uvicorn
 
 import sys
@@ -28,6 +29,41 @@ try:
     from backend.inference import SkinScanInferenceEngine, get_engine
 except ImportError:
     from inference import SkinScanInferenceEngine, get_engine
+
+try:
+    from backend.database import (
+        init_db,
+        create_user,
+        authenticate_user,
+        get_user_by_id,
+        create_access_token,
+        verify_access_token,
+        create_scan,
+        get_user_scans,
+        get_scan_by_id,
+        delete_user_scan,
+        update_scan_feedback,
+        get_retrain_queue,
+        export_retrain_manifest,
+        VALID_BIOPSY_LABELS,
+    )
+except ImportError:
+    from database import (
+        init_db,
+        create_user,
+        authenticate_user,
+        get_user_by_id,
+        create_access_token,
+        verify_access_token,
+        create_scan,
+        get_user_scans,
+        get_scan_by_id,
+        delete_user_scan,
+        update_scan_feedback,
+        get_retrain_queue,
+        export_retrain_manifest,
+        VALID_BIOPSY_LABELS,
+    )
 
 # ─────────────────────────────────────────────────────────
 # APP CONFIGURATION
@@ -61,32 +97,192 @@ engine: Optional[SkinScanInferenceEngine] = None
 last_inference_ms: float = 0
 
 
+def init_engine() -> SkinScanInferenceEngine:
+    global engine
+    if engine is None:
+        device = None if DEVICE == "auto" else DEVICE
+        engine = SkinScanInferenceEngine(device=device)
+
+        if os.path.isfile(MODEL_WEIGHTS_PATH):
+            try:
+                engine.load_model(MODEL_WEIGHTS_PATH)
+                print(f"[SkinScan API] Model loaded from: {MODEL_WEIGHTS_PATH}")
+            except Exception as e:
+                print(f"[SkinScan API] WARNING: Failed to load model: {e}")
+                print("[SkinScan API] Server running in DEMO mode (no real predictions)")
+        else:
+            print(f"[SkinScan API] No model weights found at: {MODEL_WEIGHTS_PATH}")
+            print("[SkinScan API] Server running in DEMO mode.")
+            print("[SkinScan API] To enable real inference, place trained weights at:")
+            print(f"  {os.path.abspath(MODEL_WEIGHTS_PATH)}")
+    return engine
+
+
 @app.on_event("startup")
 async def startup_load_model():
-    global engine
-    device = None if DEVICE == "auto" else DEVICE
-    engine = SkinScanInferenceEngine(device=device)
-
-    if os.path.isfile(MODEL_WEIGHTS_PATH):
-        try:
-            engine.load_model(MODEL_WEIGHTS_PATH)
-            print(f"[SkinScan API] Model loaded from: {MODEL_WEIGHTS_PATH}")
-        except Exception as e:
-            print(f"[SkinScan API] WARNING: Failed to load model: {e}")
-            print("[SkinScan API] Server running in DEMO mode (no real predictions)")
-    else:
-        print(f"[SkinScan API] No model weights found at: {MODEL_WEIGHTS_PATH}")
-        print("[SkinScan API] Server running in DEMO mode.")
-        print(
-            "[SkinScan API] To enable real inference, place trained weights at:"
-        )
-        print(f"  {os.path.abspath(MODEL_WEIGHTS_PATH)}")
+    init_db()
+    init_engine()
 
     # Serve frontend build if available
     dist_path = os.path.join(os.path.dirname(__file__), "..", "dist")
     if os.path.isdir(dist_path):
         app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
         print(f"[SkinScan API] Serving frontend from: {dist_path}")
+
+
+# ─────────────────────────────────────────────────────────
+# AUTH SCHEMAS & DEPENDENCIES
+# ─────────────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
+    role: str = Field(default="clinician")
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=1)
+
+
+class FeedbackRequest(BaseModel):
+    confirmed_biopsy_label: str = Field(...)
+    clinician_notes: Optional[str] = Field(default="")
+
+
+def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+    """Extract authenticated user if valid Bearer token provided, else None (Guest Mode)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization[7:].strip()
+    payload = verify_access_token(token)
+    if not payload:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    return get_user_by_id(user_id)
+
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    """Enforce authentication for protected endpoints."""
+    user = get_current_user_optional(authorization)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please provide a valid Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+# ─────────────────────────────────────────────────────────
+# AUTH & SCAN HISTORY ENDPOINTS
+# ─────────────────────────────────────────────────────────
+
+@app.post("/auth/register")
+def register(req: RegisterRequest):
+    """Register a new clinician or patient user."""
+    try:
+        user = create_user(
+            name=req.name,
+            email=req.email,
+            password=req.password,
+            role=req.role,
+        )
+        token = create_access_token(user["id"], user["email"], user["role"])
+        return {"token": token, "user": user}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+
+@app.post("/auth/login")
+def login(req: LoginRequest):
+    """Authenticate clinician or patient credentials."""
+    user = authenticate_user(req.email, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token(user["id"], user["email"], user["role"])
+    return {"token": token, "user": user}
+
+
+@app.get("/auth/me")
+def get_me(user: dict = Depends(get_current_user)):
+    """Return currently authenticated user profile."""
+    return {"user": user}
+
+
+@app.get("/scans")
+def list_scans(user: dict = Depends(get_current_user)):
+    """Return all scans recorded by the authenticated clinician/user."""
+    scans = get_user_scans(user["id"])
+    return {"scans": scans, "count": len(scans)}
+
+
+@app.delete("/scans/{scan_id}")
+def delete_scan(scan_id: str, user: dict = Depends(get_current_user)):
+    """Delete a scan owned by the authenticated user."""
+    success = delete_user_scan(user["id"], scan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Scan '{scan_id}' not found or unauthorized")
+    return {"status": "deleted", "scan_id": scan_id}
+
+
+# ─────────────────────────────────────────────────────────
+# HITL BIOPSY FEEDBACK & MLOPS QUEUE ENDPOINTS
+# ─────────────────────────────────────────────────────────
+
+@app.patch("/scans/{scan_id}/feedback")
+def submit_biopsy_feedback(
+    scan_id: str,
+    req: FeedbackRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Attach histopathology ground truth biopsy label and queue scan for offline model fine-tuning.
+    """
+    label = req.confirmed_biopsy_label.strip().lower()
+    if label not in VALID_BIOPSY_LABELS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid biopsy label '{label}'. Must be one of: {sorted(list(VALID_BIOPSY_LABELS))}",
+        )
+
+    user = get_current_user_optional(authorization)
+    updated = update_scan_feedback(
+        scan_id=scan_id,
+        confirmed_biopsy_label=label,
+        clinician_notes=req.clinician_notes,
+        user_id=user["id"] if user else None,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Scan '{scan_id}' not found")
+    return {
+        "status": "success",
+        "message": "Biopsy ground truth recorded and queued for offline retraining",
+        "scan": updated,
+    }
+
+
+@app.get("/mlops/retrain-queue")
+def get_mlops_retrain_queue():
+    """Return summary and cases queued for offline v5 retraining."""
+    return get_retrain_queue()
+
+
+@app.get("/mlops/export-queue")
+def export_mlops_retrain_queue():
+    """Export anonymized JSON manifest of verified biopsy cases for offline fine-tuning."""
+    manifest = export_retrain_manifest()
+    return {
+        "export_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "model_version": "v4 (frozen)",
+        "total_records": len(manifest),
+        "manifest": manifest,
+    }
 
 
 # ─────────────────────────────────────────────────────────
@@ -106,15 +302,18 @@ def root():
 @app.get("/api/health")
 def health():
     import torch
+    eng = init_engine()
 
     return {
         "status": "healthy",
-        "model_loaded": engine.model_loaded if engine else False,
-        "model_version": "DenseNet121-MultiModal-v4-balanced-TTA",
-        "device": str(engine.device) if engine else "unknown",
-        "gpu_available": torch.cuda.is_available(),
+        "model_loaded": eng.model_loaded if eng else False,
+        "model_version": "DenseNet121-MultiModal-FocalLoss-v2.0",
+        "device": str(eng.device) if eng else "unknown",
+        "gpu_available": torch.cuda.is_available() or (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
         "gpu_name": (
-            torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+            torch.cuda.get_device_name(0)
+            if torch.cuda.is_available()
+            else ("Apple MPS" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else None)
         ),
         "last_inference_ms": round(last_inference_ms, 1),
         "weights_file": os.path.basename(MODEL_WEIGHTS_PATH),
@@ -149,6 +348,7 @@ async def analyze_lesion(
     doctor_preference: str = Form("auto"),
     lesion_type: str = Form("mole"),
     file: Optional[UploadFile] = File(None),
+    authorization: Optional[str] = Header(None),
 ):
     """
     Full multi-modal inference pipeline:
@@ -161,11 +361,12 @@ async def analyze_lesion(
     7. Specialist doctor referral routing
     """
     global last_inference_ms
+    eng = init_engine()
 
-    if not engine:
+    if not eng:
         raise HTTPException(status_code=503, detail="Inference engine not initialized")
 
-    if not engine.model_loaded:
+    if not eng.model_loaded:
         raise HTTPException(
             status_code=503,
             detail={
@@ -236,7 +437,7 @@ async def analyze_lesion(
     try:
         start_time = time.perf_counter()
 
-        result = engine.predict(
+        result = eng.predict(
             image_bytes=image_bytes,
             age=age,
             sex=clean_sex,
@@ -251,13 +452,34 @@ async def analyze_lesion(
         last_inference_ms = elapsed_ms
         result["inference_time_ms"] = round(elapsed_ms, 1)
 
-        # Expose top-level verification fields
+        # Expose top-level verification fields and aliases
         if "hair_removed_image" not in result:
             result["hair_removed_image"] = result.get("images", {}).get("dullrazor", "")
         if "hair_mask_image" not in result:
             result["hair_mask_image"] = result.get("images", {}).get("hair_mask", "")
         if "gradcam_image" not in result:
             result["gradcam_image"] = result.get("images", {}).get("gradcam", "")
+
+        result["risk_stage"] = result.get("riskStage")
+        result["risk_tier"] = result.get("cancer_verification", {}).get("risk_tier", result.get("riskLevel"))
+        result["spectral_score"] = result.get("spectralScore")
+        result["malignant_probability"] = result.get("cancer_verification", {}).get("malignant_probability")
+        result["action_needed"] = result.get("actionNeeded")
+
+        # Check authentication for persistent scan history (Guest Mode fallback)
+        current_user = get_current_user_optional(authorization)
+        if current_user:
+            try:
+                scan_id = create_scan(current_user["id"], result)
+                result["scan_id"] = scan_id
+                result["is_persisted"] = True
+            except Exception as db_err:
+                print(f"[SkinScan API] WARNING: Failed to persist scan: {db_err}")
+                result["scan_id"] = None
+                result["is_persisted"] = False
+        else:
+            result["scan_id"] = None
+            result["is_persisted"] = False
 
         return JSONResponse(content=result)
 

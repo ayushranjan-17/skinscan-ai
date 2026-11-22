@@ -1,5 +1,17 @@
 import React from 'react';
-import { ShieldCheck, Activity, Brain, FileText, Cpu, Sparkles, Home } from 'lucide-react';
+import {
+  ShieldCheck,
+  Activity,
+  Brain,
+  FileText,
+  Cpu,
+  Sparkles,
+  Home,
+  User,
+  LogIn,
+  LogOut,
+  History,
+} from 'lucide-react';
 
 export default function Navbar({
   activeTab,
@@ -10,6 +22,10 @@ export default function Navbar({
   onOpenReport,
   onOpenPipeline,
   backendHealth,
+  currentUser,
+  onOpenAuthModal,
+  onOpenHistory,
+  onLogout,
 }) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-derma-border/80 bg-derma-bg/95 backdrop-blur-xl shadow-sm">
@@ -148,7 +164,7 @@ export default function Navbar({
             <button
               onClick={onOpenPipeline}
               className="hidden lg:flex items-center h-10 space-x-2 px-3.5 text-xs font-medium text-slate-300 bg-derma-card/80 hover:bg-derma-surface border border-derma-border rounded-xl transition-all whitespace-nowrap shadow-sm hover:text-white"
-              title="View Hybrid DenseNet121 + Random Forest Architecture & Formulas"
+              title="View Hybrid DenseNet121 + Metadata MLP Architecture & Formulas"
             >
               <Cpu className="w-4 h-4 text-derma-accent" />
               <span>ML Architecture</span>
@@ -156,13 +172,54 @@ export default function Navbar({
 
             <button
               onClick={onOpenReport}
-              className="flex items-center h-10 space-x-2 px-4 text-xs font-bold text-slate-900 bg-gradient-to-r from-derma-accent to-derma-blue hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 whitespace-nowrap"
+              className="flex items-center h-10 space-x-2 px-3.5 sm:px-4 text-xs font-bold text-slate-900 bg-gradient-to-r from-derma-accent to-derma-blue hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 whitespace-nowrap"
             >
               <FileText className="w-4 h-4 flex-shrink-0" />
               <span>
                 <span className="hidden sm:inline">Generate </span>EHR Report
               </span>
             </button>
+
+            {/* Clinician Authentication & Persistent History Controls */}
+            {currentUser ? (
+              <div className="flex items-center space-x-1.5 sm:space-x-2 bg-derma-card/90 border border-derma-border px-2 sm:px-2.5 py-1 rounded-xl h-10">
+                <div className="flex items-center space-x-1.5 text-xs text-white font-medium">
+                  <div className="w-6 h-6 rounded-lg bg-derma-surface flex items-center justify-center text-derma-accent border border-derma-border">
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="max-w-[100px] truncate hidden 2xl:inline">{currentUser.name}</span>
+                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-derma-surface text-derma-teal border border-derma-border">
+                    {currentUser.role || 'Clinician'}
+                  </span>
+                </div>
+
+                <button
+                  onClick={onOpenHistory}
+                  title="View Persistent Scan History"
+                  className="flex items-center space-x-1 text-xs px-2 py-1 rounded-lg text-slate-300 hover:text-white hover:bg-derma-surface transition-colors"
+                >
+                  <History className="w-3.5 h-3.5 text-derma-accent" />
+                  <span className="hidden sm:inline">History</span>
+                </button>
+
+                <button
+                  onClick={onLogout}
+                  title="Sign Out"
+                  className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onOpenAuthModal}
+                className="flex items-center h-10 space-x-1.5 px-3 text-xs font-semibold text-slate-200 bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all shadow-sm hover:text-white whitespace-nowrap"
+                title="Sign in to save scans & attach histopathology ground truth"
+              >
+                <LogIn className="w-3.5 h-3.5 text-derma-accent" />
+                <span>Sign In<span className="hidden sm:inline"> / Clinician</span></span>
+              </button>
+            )}
           </div>
         </div>
 

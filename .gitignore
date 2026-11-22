@@ -58,3 +58,19 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# SkinScan SQLite Database
+backend/skinscan.db
+backend/skinscan.db-wal
+backend/skinscan.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Test Photos & Temporary Benchmark Artifacts
+scripts/*.jpg
+scripts/*.jpeg
+scripts/*.png
+*.jpg
+*.jpeg
+*.png

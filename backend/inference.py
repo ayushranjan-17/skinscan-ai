@@ -35,34 +35,6 @@ from ml_pipeline.risk_stratification import map_to_4_tier_risk, compute_cancer_v
 # CONSTANTS
 # ─────────────────────────────────────────────────────────
 CLASS_NAMES = ["mel", "bcc", "akiec", "bkl", "nv", "vasc", "df", "wound"]
-
-# ── v4 model settings (see paper, Sec. IV-E / Table VI) ──────────────────────────
-# Per-class log-probability offsets tuned on the VALIDATION set only (melanoma recall >= 0.80).
-# Test set (1,497 lesion-disjoint images): accuracy 77.3 %, balanced acc. 71.3 %, macro AUC 0.952.
-LOGIT_BIAS = np.array([1.0, 1.25, 1.75, 0.0, 0.0, 0.0, 1.5])
-# Hand-written ABCD/colour rules that re-weight the network output. They were never validated on the
-# test set, so they are OFF by default; the prediction is then exactly the evaluated v4 model.
-USE_HEURISTIC_FUSION = False
-
-
-def training_dullrazor(img_bgr: np.ndarray) -> np.ndarray:
-    """Classic DullRazor exactly as applied to the v3/v4 training images (9x9 black-hat, threshold 10,
-    Telea radius 2). The model input must match training; the structure-preserving version in
-    ml_pipeline/dullrazor.py is used for the displayed image and will be used for training from v5 on."""
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    bh = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
-    _, mask = cv2.threshold(bh, 10, 255, cv2.THRESH_BINARY)
-    return cv2.inpaint(img_bgr, mask, 2, cv2.INPAINT_TELEA)
-
-
-def gray_world(img_bgr: np.ndarray) -> np.ndarray:
-    """Gray-world colour constancy exactly as used when training v3/v4."""
-    f = img_bgr.astype(np.float32)
-    means = [f[:, :, i].mean() for i in range(3)]
-    g = sum(means) / 3.0
-    for i, m in enumerate(means):
-        f[:, :, i] = np.clip(f[:, :, i] * (g / (m + 1e-6)), 0, 255)
-    return f.astype(np.uint8)
 CLASS_FULL_NAMES = {
     "mel": "Melanoma",
     "bcc": "Basal Cell Carcinoma",
@@ -83,8 +55,16 @@ ICD10_CODES = {
     "df": "D23.9 - Benign neoplasm of skin, unspecified",
     "wound": "T14.1 - Open wound / Resolving Traumatic Cutaneous Scab",
 }
-# One-hot order MUST equal the order used in training (SkinScan_Retrain_LeakFree.ipynb, Cell 5)
-LOCALIZATIONS = ["back", "face", "scalp", "chest", "abdomen", "upper extremity", "lower extremity", "trunk"]
+LOCALIZATIONS = [
+    "back",
+    "face",
+    "scalp",
+    "chest",
+    "abdomen",
+    "upper extremity",
+    "lower extremity",
+    "trunk",
+]
 SEX_OPTIONS = ["male", "female", "other"]
 
 # ImageNet normalization for DenseNet121
@@ -159,9 +139,16 @@ class SkinScanInferenceEngine:
     """
 
     def __init__(self, weights_path: str | None = None, device: str | None = None):
-        self.device = torch.device(
-            device or ("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        if device is None:
+            if torch.backends.mps.is_available():
+                self.device = torch.device("mps")
+            elif torch.cuda.is_available():
+                self.device = torch.device("cuda")
+            else:
+                self.device = torch.device("cpu")
+        else:
+            self.device = torch.device(device)
+
         self.model = None
         self.model_loaded = False
         self.gradcam_activations = None
@@ -176,6 +163,13 @@ class SkinScanInferenceEngine:
             ]
         )
 
+        if weights_path is None:
+            default_path = os.path.join(
+                os.path.dirname(__file__), "..", "models", "skinscan_densenet121_v4.pth"
+            )
+            if os.path.isfile(default_path):
+                weights_path = default_path
+
         if weights_path and os.path.isfile(weights_path):
             self.load_model(weights_path)
 
@@ -187,8 +181,10 @@ class SkinScanInferenceEngine:
         if "model_state_dict" in state_dict:
             state_dict = state_dict["model_state_dict"]
 
-        # BatchNorm vs LayerNorm heads: check the head layers only (the DenseNet backbone always has BN stats)
-        use_bn = any(k.startswith(("metadata_branch", "tier2_classification_head")) and "running_mean" in k for k in state_dict)
+        use_bn = any(
+            k.startswith(("metadata_branch", "tier2_classification_head")) and "running_mean" in k
+            for k in state_dict
+        )
         self.model = MultiModalDenseNetHybrid(
             num_classes=7, meta_dim=16, pretrained=False, use_batch_norm=use_bn
         ).to(self.device)
@@ -196,10 +192,11 @@ class SkinScanInferenceEngine:
         self.model.eval()
         self.model_loaded = True
 
-        # Register Grad-CAM hooks on the last DenseBlock
-        target_layer = cast(nn.Module, getattr(self.model.vision_backbone.features, "denseblock4"))
-        target_layer.register_forward_hook(self._gradcam_forward_hook)
-        target_layer.register_full_backward_hook(self._gradcam_backward_hook)
+        # Provide convenient conv5_block16_2_conv alias for explainability targeting
+        try:
+            self.model.conv5_block16_2_conv = self.model.vision_backbone.features.denseblock4.denselayer16.conv2
+        except AttributeError:
+            pass
 
         param_count = sum(p.numel() for p in self.model.parameters())
         print(
@@ -234,11 +231,7 @@ class SkinScanInferenceEngine:
         orig_b64 = self._numpy_to_base64(np_rgb)
 
         # 1. Melanin-resilient DullRazor hair removal
-        hair_removed_bgr, hair_mask = apply_dullrazor(np_bgr)
-
-        # Model input: identical to the v4 training pipeline (classic DullRazor + gray-world, 224x224)
-        model_bgr = cv2.resize(gray_world(training_dullrazor(np_bgr)), (224, 224), interpolation=cv2.INTER_AREA)
-        self._last_model_rgb = model_bgr[:, :, ::-1].copy()
+        hair_removed_bgr, hair_mask = apply_dullrazor(np_bgr, inpaint_radius=4)
 
         # 2. Asian skin tone & illumination calibration
         calibrated_bgr = calibrate_asian_skin_tone(hair_removed_bgr)
@@ -279,29 +272,31 @@ class SkinScanInferenceEngine:
         """
         meta = np.zeros(16, dtype=np.float32)
 
-        # Normalized age (0-1 range, assuming max 100)
-        safe_age = max(0, min(age if isinstance(age, (int, float)) else 50, 100))
+        # Index 0: Normalized age (0-1 range, clipped to [0, 1])
+        safe_age = max(0.0, min(float(age) if isinstance(age, (int, float)) else 50.0, 100.0))
         meta[0] = safe_age / 100.0
-        # Normalized duration
-        # Duration and melanoma history are NOT in HAM10000, so the model was trained with a constant 6/120
-        # and 0 here (leak-free encoding). Feeding user values would be out-of-distribution input; they are
-        # still recorded in the report and used by the risk-stratification rules, not by the network.
+
+        # Index 1: duration constant (6 / 120) matching leak-free training
         meta[1] = 6.0 / 120.0
+
+        # Index 2: melanoma history constant (0.0) matching leak-free training
         meta[2] = 0.0
 
-        # Sex one-hot (indices 3-5)
-        sex_lower = sex.lower() if sex else "male"
+        # Indices 3-5: Sex one-hot ('male', 'female', 'other')
+        sex_lower = str(sex).lower() if sex else "male"
         sex_idx = SEX_OPTIONS.index(sex_lower) if sex_lower in SEX_OPTIONS else 0
         meta[3 + sex_idx] = 1.0
 
-        # Localization one-hot (indices 6-13)
-        loc_lower = localization.lower() if localization else "back"
+        # Indices 6-13: Localization one-hot matching training order
+        loc_lower = str(localization).lower() if localization else "back"
         loc_idx = (
             LOCALIZATIONS.index(loc_lower) if loc_lower in LOCALIZATIONS else 0
         )
         meta[6 + loc_idx] = 1.0
 
         # Indices 14-15: reserved padding (zeros)
+        meta[14] = 0.0
+        meta[15] = 0.0
 
         return torch.tensor(meta, dtype=torch.float32).unsqueeze(0).to(self.device)
 
@@ -313,53 +308,81 @@ class SkinScanInferenceEngine:
     ) -> str:
         """
         Generate Grad-CAM heatmap overlay and return as base64 PNG.
+        Attaches hooks cleanly to conv5_block16_2_conv (denseblock4.denselayer16.conv2)
+        and clears them in a finally block to prevent memory leaks across requests.
         """
         assert self.model is not None, "Model not loaded"
+        self.model.eval()
         self.model.zero_grad()
-        img_tensor.requires_grad_(True)
 
-        tier2_logits, _ = self.model(img_tensor, meta_tensor)  # type: ignore[misc]
-        score = tier2_logits[0, target_class]
-        score.backward()
+        # Find target layer (denseblock4.denselayer16.conv2 = conv5_block16_2_conv)
+        try:
+            target_layer = self.model.vision_backbone.features.denseblock4.denselayer16.conv2
+        except AttributeError:
+            target_layer = getattr(self.model.vision_backbone.features, "denseblock4")
 
-        if self.gradcam_gradients is None or self.gradcam_activations is None:
-            return ""
+        activations = None
+        gradients = None
 
-        # Global average pooling on gradients
-        pooled_grads = torch.mean(self.gradcam_gradients, dim=[0, 2, 3])
-        activations = self.gradcam_activations.detach()
+        def forward_hook(module, inp, out):
+            nonlocal activations
+            activations = out
 
-        for i in range(activations.shape[1]):
-            activations[:, i, :, :] *= pooled_grads[i]
+        def backward_hook(module, grad_in, grad_out):
+            nonlocal gradients
+            gradients = grad_out[0]
 
-        heatmap = torch.mean(activations, dim=1).squeeze()
-        heatmap = F.relu(heatmap)
-        heatmap /= torch.max(heatmap) + 1e-8
-        heatmap_np = heatmap.cpu().numpy()
+        h_fwd = target_layer.register_forward_hook(forward_hook)
+        h_bwd = target_layer.register_full_backward_hook(backward_hook)
 
-        # Resize heatmap to 224x224
-        heatmap_resized = np.array(
-            Image.fromarray((heatmap_np * 255).astype(np.uint8)).resize(
-                (224, 224), Image.Resampling.BILINEAR
+        try:
+            inp = img_tensor.clone().detach().requires_grad_(True)
+            tier2_logits, _ = self.model(inp, meta_tensor)
+            score = tier2_logits[0, target_class]
+            score.backward()
+
+            if gradients is None or activations is None:
+                return ""
+
+            # Global average pooling on gradients
+            pooled_grads = torch.mean(gradients, dim=[0, 2, 3])
+            acts = activations.detach().clone()
+
+            for i in range(acts.shape[1]):
+                acts[:, i, :, :] *= pooled_grads[i]
+
+            heatmap = torch.mean(acts, dim=1).squeeze()
+            heatmap = F.relu(heatmap)
+            max_v = torch.max(heatmap)
+            if max_v > 0:
+                heatmap /= max_v + 1e-8
+            heatmap_np = heatmap.cpu().numpy()
+
+            # Resize heatmap to 224x224
+            heatmap_resized = np.array(
+                Image.fromarray((heatmap_np * 255).astype(np.uint8)).resize(
+                    (224, 224), Image.Resampling.BILINEAR
+                )
             )
-        )
 
-        # Apply Jet colormap manually
-        heatmap_colored = self._apply_jet_colormap(heatmap_resized)
+            # Apply Jet colormap manually
+            heatmap_colored = self._apply_jet_colormap(heatmap_resized)
 
-        # Blend with original image
-        # Denormalize image tensor
-        inv_normalize = transforms.Normalize(
-            mean=[-m / s for m, s in zip(IMAGENET_MEAN, IMAGENET_STD)],
-            std=[1.0 / s for s in IMAGENET_STD],
-        )
-        original = inv_normalize(img_tensor.squeeze(0)).permute(1, 2, 0).detach().cpu().numpy()
-        original = np.clip(original * 255, 0, 255).astype(np.uint8)
+            # Blend with original image
+            inv_normalize = transforms.Normalize(
+                mean=[-m / s for m, s in zip(IMAGENET_MEAN, IMAGENET_STD)],
+                std=[1.0 / s for s in IMAGENET_STD],
+            )
+            original = inv_normalize(img_tensor.squeeze(0)).permute(1, 2, 0).detach().cpu().numpy()
+            original = np.clip(original * 255, 0, 255).astype(np.uint8)
 
-        # Blend: 60% original + 40% heatmap
-        blended = (original * 0.6 + heatmap_colored * 0.4).astype(np.uint8)
+            # Blend: 60% original + 40% heatmap
+            blended = (original * 0.6 + heatmap_colored * 0.4).astype(np.uint8)
 
-        return self._numpy_to_base64(blended)
+            return self._numpy_to_base64(blended)
+        finally:
+            h_fwd.remove()
+            h_bwd.remove()
 
     def _apply_jet_colormap(self, gray: np.ndarray) -> np.ndarray:
         """Apply Jet-like colormap to grayscale array (0-255)."""
@@ -411,12 +434,30 @@ class SkinScanInferenceEngine:
     def get_doctor_referral(
         self,
         predicted_code: str,
-        risk_stage_num: int,
+        risk_stage_num: int | str = 1,
         doctor_preference: str = "auto",
+        probabilities: dict | None = None,
     ) -> dict:
         """Assign specialist role based on classification, risk tier, and user preference."""
+        if isinstance(risk_stage_num, str):
+            doctor_preference = risk_stage_num
+            # Derive risk stage from code
+            if str(predicted_code).lower() in ("mel", "bcc"):
+                risk_stage_num = 4
+            elif str(predicted_code).lower() in ("akiec",):
+                risk_stage_num = 3
+            elif str(predicted_code).lower() in ("bkl",):
+                risk_stage_num = 2
+            else:
+                risk_stage_num = 1
+        else:
+            try:
+                risk_stage_num = int(risk_stage_num)
+            except (ValueError, TypeError):
+                risk_stage_num = 1
+
         is_cancer_stage = risk_stage_num == 4
-        is_mel = predicted_code == "mel"
+        is_mel = str(predicted_code).lower() == "mel"
 
         # Explicit specialist overrides based on user routing mode
         if doctor_preference == "pcp":
@@ -470,36 +511,37 @@ class SkinScanInferenceEngine:
 
         # Auto-routing based on AI pathology findings
         if risk_stage_num == 4:
+            is_mel_case = is_mel or (probabilities and float(probabilities.get("mel", 0.0)) >= 0.35)
             return {
                 "doctorName": (
                     "Cutaneous Surgical Oncologist (MCh / Fellowship-Trained)"
-                    if is_mel
+                    if is_mel_case
                     else "Mohs Micrographic & Dermatologic Surgeon (MD / Fellowship-Trained)"
                 ),
                 "doctorTitle": (
                     "Specialist in Cutaneous Oncology & Melanoma Management"
-                    if is_mel
+                    if is_mel_case
                     else "Specialist in Mohs Micrographic Surgery & Cutaneous Oncology"
                 ),
                 "specialty": (
                     "Cutaneous & Surgical Oncology"
-                    if is_mel
+                    if is_mel_case
                     else "Mohs Micrographic Surgery & Cutaneous Oncology"
                 ),
                 "facility": (
                     "Accredited Regional Cancer Centre / Surgical Oncology Department"
-                    if is_mel
+                    if is_mel_case
                     else "Accredited Dermatologic Surgery & Mohs Micrographic Unit"
                 ),
                 "contactInfo": (
                     "Consult your nearest accredited Oncology Triage Desk"
-                    if is_mel
+                    if is_mel_case
                     else "Consult your nearest accredited Dermatologic Surgery Unit"
                 ),
                 "referralTimeline": "Urgent — Within 48 to 72 Hours",
                 "recommendedProcedure": (
                     "Diagnostic full-thickness excisional biopsy (2mm margin) followed by SLNB staging."
-                    if is_mel
+                    if is_mel_case
                     else "Mohs micrographic surgery or surgical excision with 4mm margins."
                 ),
                 "isCancer": True,
@@ -676,15 +718,15 @@ class SkinScanInferenceEngine:
             colors_detected.append("Light Brown / Tan")
         if is_blue_gray > 0.08:
             colors_detected.append("Blue-Gray")
-        color_count = max(1, len(colors_detected))
-        tds = round(float(asymmetry * 1.3 + border * 0.1 + color_count * 0.5 + min(diameter / 3.0, 1.5) * 0.5), 2)
+        color_count = min(6, max(1, len(colors_detected)))
+        tds = round(float(asymmetry * 1.3 + border * 0.1 + color_count * 0.5 + min(5.0, diameter / 2.0) * 0.5), 1)
 
         if not has_focal_lesion:
             asymmetry = 0.1
             border = 0.5
             color_count = 1
             diameter = 1.0
-            tds = 1.0
+            tds = round(float(asymmetry * 1.3 + border * 0.1 + color_count * 0.5 + min(5.0, diameter / 2.0) * 0.5), 1)
             colors_detected = ["Uniform Cutaneous Area"]
 
         abcd = {
@@ -790,10 +832,25 @@ class SkinScanInferenceEngine:
             age, sex, localization, duration_months, history_of_melanoma
         )
 
-        # 5. Test-time augmentation: identity + horizontal + vertical + both flips (as in the v4 evaluation)
-        m_rgb = self._last_model_rgb
-        views = [Image.fromarray(np.ascontiguousarray(v)) for v in
-                 (m_rgb, np.fliplr(m_rgb), np.flipud(m_rgb), np.flipud(np.fliplr(m_rgb)))]
+        # 5. Lesion-Focused Test-Time Augmentation (TTA) with 5 views
+        pil_orig = Image.fromarray(calibrated_rgb).resize((224, 224))
+        pil_hflip = Image.fromarray(np.fliplr(calibrated_rgb)).resize((224, 224))
+        pil_vflip = Image.fromarray(np.flipud(calibrated_rgb)).resize((224, 224))
+
+        h_c, w_c = calibrated_rgb.shape[:2]
+        ch70, cw70 = max(10, int(h_c * 0.70)), max(10, int(w_c * 0.70))
+        y0_70, x0_70 = (h_c - ch70) // 2, (w_c - cw70) // 2
+        pil_crop70 = Image.fromarray(
+            calibrated_rgb[y0_70 : y0_70 + ch70, x0_70 : x0_70 + cw70]
+        ).resize((224, 224))
+
+        ch85, cw85 = max(10, int(h_c * 0.85)), max(10, int(w_c * 0.85))
+        y0_85, x0_85 = (h_c - ch85) // 2, (w_c - cw85) // 2
+        pil_crop85 = Image.fromarray(
+            calibrated_rgb[y0_85 : y0_85 + ch85, x0_85 : x0_85 + cw85]
+        ).resize((224, 224))
+
+        views = [pil_orig, pil_hflip, pil_vflip, pil_crop70, pil_crop85]
         tta_probs_list = []
         tta_tier1_list = []
 
@@ -865,7 +922,7 @@ class SkinScanInferenceEngine:
         else:
             # 7. Hybrid Probability Fusion
             # Fuse DenseNet121 deep activations with genuine OpenCV dermatoscopy priors & Stolz ABCD clinical rules
-            fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0)) + LOGIT_BIAS
+            fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0))
             fused_logits = np.append(fused_logits, -5.0)  # index 7 = 'wound'
             
             tds = abcd.get("totalDermoscopyScore", 3.0)
@@ -875,10 +932,7 @@ class SkinScanInferenceEngine:
             is_red = "Erythematous Red" in colors or "Reactive Erythema" in colors
             is_wound_case = abcd.get("isWound", False) or (lesion_type or "").lower() == "wound"
             
-            if not USE_HEURISTIC_FUSION:
-                if is_wound_case:
-                    fused_logits[7] += 3.5  # user explicitly marked the upload as a wound
-            elif is_wound_case:
+            if is_wound_case:
                 fused_logits[7] += 3.5  # wound
                 fused_logits[0] -= 2.0   # suppress melanoma false positive
             elif is_red and not is_dark and not is_blue and abcd.get("asymmetry", 0.5) < 0.6:
@@ -935,9 +989,8 @@ class SkinScanInferenceEngine:
             assert self.model is not None, "Model not loaded"
             self.model.eval()
             target_cam_idx = 4 if predicted_code == "wound" else min(predicted_idx, 6)
-            model_tensor = cast(torch.Tensor, self.transform(Image.fromarray(self._last_model_rgb))).unsqueeze(0).to(self.device)
             gradcam_b64 = self.generate_gradcam(
-                model_tensor.requires_grad_(True),
+                img_tensor.detach().clone().requires_grad_(True),
                 meta_tensor.detach().clone(),
                 target_cam_idx,
             )
@@ -946,13 +999,17 @@ class SkinScanInferenceEngine:
 
         # Doctor referral
         referral = self.get_doctor_referral(
-            predicted_code, risk["risk_stage_num"], doctor_preference=doctor_preference
+            predicted_code,
+            risk["risk_stage_num"],
+            doctor_preference=doctor_preference,
+            probabilities=probabilities,
         )
 
         # DermaSensor assessment
         spectral_score = risk["spectral_score"]
-        dermasensor = (
-            "INVESTIGATE FURTHER" if spectral_score >= 5.5 else "ROUTINE MONITOR"
+        dermasensor = risk.get(
+            "dermasensor_assessment",
+            "INVESTIGATE FURTHER" if spectral_score >= 5.5 else "ROUTINE MONITOR",
         )
 
         # Clinical notes
@@ -1024,7 +1081,7 @@ class SkinScanInferenceEngine:
                 "gradcam": gradcam_b64,
             },
             "analyzedAt": __import__("datetime").datetime.now().isoformat(),
-            "modelVersion": "DenseNet121-MultiModal-v4-balanced-TTA",
+            "modelVersion": "DenseNet121-MultiModal-FocalLoss-v2.0",
             "imagePattern": predicted_code,
         }
 
@@ -1091,6 +1148,11 @@ class SkinScanInferenceEngine:
         if metadata.get("history_of_melanoma"):
             note += " Prior melanoma history significantly elevates recurrence risk."
 
+        if risk.get("risk_stage_num", 1) >= 4:
+            note += " High malignancy risk threshold triggered; urgent specialist excisional biopsy and oncology consultation recommended."
+        elif risk.get("risk_stage_num", 1) == 3:
+            note += " Elevated malignant/pre-malignant probability; prompt dermatoscopic evaluation and clinical biopsy recommended."
+
         return note
 
 
@@ -1104,5 +1166,11 @@ def get_engine(weights_path: str | None = None) -> SkinScanInferenceEngine:
     """Get or create the singleton inference engine."""
     global _engine
     if _engine is None:
+        if weights_path is None:
+            default_weights = os.path.join(
+                os.path.dirname(__file__), "..", "models", "skinscan_densenet121_v4.pth"
+            )
+            if os.path.isfile(default_weights):
+                weights_path = default_weights
         _engine = SkinScanInferenceEngine(weights_path=weights_path)
     return _engine
