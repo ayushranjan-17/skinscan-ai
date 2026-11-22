@@ -103,7 +103,7 @@ def _line_open(cand: np.ndarray, line_len: int, n_angles: int = 16) -> np.ndarra
     return result
 
 
-def apply_dullrazor(
+def _apply_dullrazor_single(
     img_bgr: np.ndarray,
     inpaint_radius: int = 4,
     k_noise: float = 3.2,
@@ -283,6 +283,31 @@ def apply_dullrazor(
     hair_removed = cv2.inpaint(img_bgr, final_hair_mask, actual_inpaint_radius, cv2.INPAINT_TELEA)
     return hair_removed, final_hair_mask
 
+
+
+def apply_dullrazor(
+    img_bgr: np.ndarray,
+    inpaint_radius: int = 4,
+    k_noise: float = 3.2,
+    line_len: int = 13,
+    lesion_line_len: int = 25,
+    min_coverage: float = 0.0003,
+    passes: int = 2,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Hair removal with a second pass over the first pass's output, which catches strand
+    fragments the first pass leaves behind. The second pass is skipped when the first
+    already masked more than 25% of the image. Returns (hair_removed_bgr, union_mask).
+    """
+    out, mask = _apply_dullrazor_single(
+        img_bgr, inpaint_radius, k_noise, line_len, lesion_line_len, min_coverage
+    )
+    if cv2 is None or passes < 2 or mask is None or mask.size == 0 or float((mask > 0).mean()) > 0.25:
+        return out, mask
+    out2, mask2 = _apply_dullrazor_single(
+        out, inpaint_radius, k_noise, line_len, lesion_line_len, min_coverage
+    )
+    return out2, cv2.bitwise_or(mask, mask2)
 
 
 def calculate_ita(img_bgr: np.ndarray) -> float:
