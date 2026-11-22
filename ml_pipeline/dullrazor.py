@@ -543,6 +543,34 @@ def check_skin_and_quality(img_bgr: np.ndarray) -> tuple[bool, float, float, flo
     return is_valid, skin_coverage_pct, blur_score, ita, status_msg
 
 
+def training_preprocess(
+    img_bgr: np.ndarray, target_size: tuple[int, int] = (224, 224), work_width: int = 600
+) -> np.ndarray:
+    """
+    The exact preprocessing the v4 model was trained and evaluated with (the leak-free notebook):
+    kernel-9 black-hat DullRazor with Telea inpainting (radius 2), then gray-world colour constancy,
+    then an INTER_AREA resize. Wider images are first scaled to the 600 px width of HAM10000 so the
+    hair-removal kernel works at the training scale. The model must be fed this, not the display
+    image: it depends on this exact look (measured: sensitivity falls about 20 points otherwise).
+    """
+    img_bgr = _ensure_bgr_image(img_bgr)
+    h, w = img_bgr.shape[:2]
+    if w > work_width:
+        img_bgr = cv2.resize(img_bgr, (work_width, max(1, int(h * work_width / w))), interpolation=cv2.INTER_AREA)
+
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
+    _, mask = cv2.threshold(blackhat, 10, 255, cv2.THRESH_BINARY)
+    img = cv2.inpaint(img_bgr, mask, 2, cv2.INPAINT_TELEA)
+
+    img_f = img.astype(np.float32)
+    means = [float(np.mean(img_f[:, :, i])) for i in range(3)]
+    gray_mean = sum(means) / 3.0
+    for i, m in enumerate(means):
+        img_f[:, :, i] = np.clip(img_f[:, :, i] * (gray_mean / (m + 1e-6)), 0, 255)
+    return cv2.resize(img_f.astype(np.uint8), target_size, interpolation=cv2.INTER_AREA)
+
+
 def apply_color_constancy(img_bgr: np.ndarray) -> np.ndarray:
     """Backward compatibility wrapper: applies calibrated skin-tone normalization."""
     return calibrate_asian_skin_tone(img_bgr)

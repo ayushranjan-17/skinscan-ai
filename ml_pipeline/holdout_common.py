@@ -12,31 +12,12 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from ml_pipeline.dullrazor import training_preprocess as preprocess  # single source for evaluation and the app
+
 CLASS_NAMES = ['mel', 'bcc', 'akiec', 'bkl', 'nv', 'vasc', 'df']
 LABEL_MAP = {c: i for i, c in enumerate(CLASS_NAMES)}
 LOCALIZATIONS = ['back', 'face', 'scalp', 'chest', 'abdomen', 'upper extremity', 'lower extremity', 'trunk']
 SEXES = ['male', 'female', 'other']
-
-
-def _dullrazor(img_bgr, kernel_size=9, inpaint_radius=2):
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
-    _, mask = cv2.threshold(blackhat, 10, 255, cv2.THRESH_BINARY)
-    return cv2.inpaint(img_bgr, mask, inpaint_radius, cv2.INPAINT_TELEA)
-
-
-def _color_constancy(img_bgr):
-    img_float = img_bgr.astype(np.float32)
-    b_mean, g_mean, r_mean = (np.mean(img_float[:, :, i]) for i in range(3))
-    gray_mean = (b_mean + g_mean + r_mean) / 3.0
-    for i, m in enumerate((b_mean, g_mean, r_mean)):
-        img_float[:, :, i] = np.clip(img_float[:, :, i] * (gray_mean / (m + 1e-6)), 0, 255)
-    return img_float.astype(np.uint8)
-
-
-def preprocess(img_bgr, target_size=(224, 224)):
-    return cv2.resize(_color_constancy(_dullrazor(img_bgr)), target_size, interpolation=cv2.INTER_AREA)
 
 
 def encode_meta(row):

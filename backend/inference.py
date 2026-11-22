@@ -22,6 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from ml_pipeline.dullrazor import (
+    training_preprocess,
     preprocess_dermatoscopy_pipeline,
     apply_dullrazor,
     calculate_ita,
@@ -243,7 +244,8 @@ class SkinScanInferenceEngine:
         hair_mask_b64 = self._numpy_to_base64(hair_mask_rgb)
 
         # Convert to tensor
-        pil_preprocessed = Image.fromarray(calibrated_rgb).resize((224, 224))
+        # The model is fed its training preprocessing; the calibrated image above is for display and features.
+        pil_preprocessed = Image.fromarray(training_preprocess(np_bgr)[:, :, ::-1].copy())
         img_tensor = cast(torch.Tensor, self.transform(pil_preprocessed)).unsqueeze(0).to(self.device)
 
         return img_tensor, dullrazor_b64, orig_b64, hair_mask_b64, calibrated_bgr, np_bgr
@@ -304,7 +306,11 @@ class SkinScanInferenceEngine:
     # GRAD-CAM GENERATION
     # ─────────────────────────────────────────────────────
     def generate_gradcam(
-        self, img_tensor: torch.Tensor, meta_tensor: torch.Tensor, target_class: int
+        self,
+        img_tensor: torch.Tensor,
+        meta_tensor: torch.Tensor,
+        target_class: int,
+        display_rgb: np.ndarray | None = None,
     ) -> str:
         """
         Generate Grad-CAM heatmap overlay and return as base64 PNG.
@@ -373,8 +379,11 @@ class SkinScanInferenceEngine:
                 mean=[-m / s for m, s in zip(IMAGENET_MEAN, IMAGENET_STD)],
                 std=[1.0 / s for s in IMAGENET_STD],
             )
-            original = inv_normalize(img_tensor.squeeze(0)).permute(1, 2, 0).detach().cpu().numpy()
-            original = np.clip(original * 255, 0, 255).astype(np.uint8)
+            if display_rgb is not None:
+                original = display_rgb
+            else:
+                original = inv_normalize(img_tensor.squeeze(0)).permute(1, 2, 0).detach().cpu().numpy()
+                original = np.clip(original * 255, 0, 255).astype(np.uint8)
 
             # Blend: 60% original + 40% heatmap
             blended = (original * 0.6 + heatmap_colored * 0.4).astype(np.uint8)
@@ -993,6 +1002,7 @@ class SkinScanInferenceEngine:
                 img_tensor.detach().clone().requires_grad_(True),
                 meta_tensor.detach().clone(),
                 target_cam_idx,
+                display_rgb=np.array(Image.fromarray(calibrated_rgb).resize((224, 224))),
             )
         except Exception as e:
             print(f"[SkinScan] Grad-CAM generation notice: {e}")
