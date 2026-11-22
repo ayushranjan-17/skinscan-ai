@@ -354,7 +354,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 />
               ) : (
                 <div className="text-slate-500 text-xs text-center p-4">
-                  Original image not available
+                  Demo case: no photo was analysed. Upload an image to see this.
                 </div>
               )}
               <div className="absolute bottom-2 left-2 right-2 bg-slate-950/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-slate-300 border border-slate-800 flex items-center justify-between">
@@ -391,7 +391,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 />
               ) : (
                 <div className="text-slate-500 text-xs text-center p-4">
-                  Hair removed preview generated during processing
+                  Demo case: no photo was analysed. Upload an image to see this.
                 </div>
               )}
               <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-emerald-300 border border-emerald-900/50 flex items-center justify-between">
@@ -428,7 +428,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 />
               ) : (
                 <div className="text-slate-500 text-xs text-center p-4">
-                  Grad-CAM heatmap generated during processing
+                  Demo case: no photo was analysed. Upload an image to see this.
                 </div>
               )}
               <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-cyan-300 border border-cyan-900/50 flex items-center justify-between">

@@ -417,7 +417,7 @@ export const DISEASE_INFO = {
     riskColor: 'rose',
     triageAction: 'Urgent Biopsy & Oncology Consultation',
     description:
-      'The most aggressive skin cancer arising from melanocytes. Early surgical excision yields >99% 5-year survival.',
+      'The most aggressive skin cancer arising from melanocytes. Caught early, surgical excision of a localised melanoma has a very high chance of cure.',
     dermoscopyFeatures: [
       'Atypical pigment network',
       'Asymmetric pigmentation',

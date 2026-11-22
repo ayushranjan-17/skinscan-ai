@@ -1,148 +1,153 @@
 # SkinScan.AI | Point-of-Care Dermatological Triage Platform
 
-> **Clinical Skin Cancer Risk Stratification & Explainable AI Decision Support System**  
-> Inspired by **[DermaSensor™](https://www.dermasensor.com/)**  
-> **Institution:** B.M.S. College of Engineering (BMSCE), Department of CSE  
+> **Skin lesion risk stratification and explainable AI decision support.** It flags lesions for a closer look. It does not diagnose, and a clinician should make every final call.
+> Inspired by [DermaSensor](https://www.dermasensor.com/).
+> **Institution:** B.M.S. College of Engineering (BMSCE), Department of CSE
 > **Major Project Phase-2:** Akshat Kumar Sinha, Anmol Bhattarai, Ayaan Shrestha, Ayush Ranjan | **Guide:** Megavalli M
 
 ---
 
-## 🔬 Project Architecture & Key Highlights
+## How it works
 
 ```
 +-----------------------------------------------------------------------------------------+
-|                                    INPUT LAYER                                          |
-|   Dermoscopic Photo (Upload / Camera / 7-Class Benchmarks) + Patient Metadata (Age, Sex, Site) |
+|  INPUT: lesion photo (upload / camera / built-in demo cases) + age, sex, body site        |
 +-----------------------------------------------------------------------------------------+
-                                           │
-                                           ▼
+                                           |
 +-----------------------------------------------------------------------------------------+
-|                                PREPROCESSING ENGINE                                     |
-|         DullRazor (Morphological BlackHat Hair Removal) + Gray-World Color Constancy    |
+|  PREPROCESSING: two-pass anisotropic DullRazor hair removal, skin-tone calibration        |
+|  (Shades of Gray + LAB), Fitzpatrick (ITA) skin-tone and image-quality gate                |
 +-----------------------------------------------------------------------------------------+
-                                           │
-                                           ▼
+                                           |
 +-----------------------------------------------------------------------------------------+
-|                           MULTI-MODAL HYBRID DL MODEL                                   |
-|   Vision Branch: DenseNet121 (1024-d)  │  Metadata Branch: Patient Context MLP (32-d)   |
-|   Loss Function: Focal Loss (γ = 2.0)  │  Optimization: Cosine Annealing + Warm Restarts|
+|  MODEL: DenseNet121 image branch (1024-d) + patient-metadata MLP (32-d), fused;            |
+|  7 lesion classes, trained with focal loss and cosine annealing with warm restarts        |
 +-----------------------------------------------------------------------------------------+
-                                           │
-                                           ▼
+                                           |
 +-----------------------------------------------------------------------------------------+
-|                             CLINICAL DECISION SUPPORT                                   |
-|   1. DermaSensor 1.0 - 10.0 Spectral Malignancy Score ("MONITOR" vs "INVESTIGATE FURTHER")|
-|   2. 4-Stage Risk Stratification: Stage 1 (Benign) to Stage 4 (Malignant)               |
-|   3. Explainable AI: Live Grad-CAM (conv5_block16_2_conv) + Stolz ABCD Rule Scoring     |
-|   4. EHR-Ready Printable / PDF Medical Triage Summary                                   |
+|  DECISION SUPPORT: 1-10 risk score, 4-stage stratification, biopsy alert when the          |
+|  combined melanoma + BCC + actinic keratosis probability reaches 25%, Grad-CAM heatmap,    |
+|  Stolz ABCD scoring, specialist referral, clinician biopsy feedback queue, EHR report      |
 +-----------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 📁 Repository Structure
+## Measured results
+
+Evaluated on **1,497 held-out HAM10000 images** from a lesion-level split (15% of lesions, seed 42, so no lesion appears in both training and test), using the same preprocessing as training. The numbers live in [`src/data/modelMetrics.json`](src/data/modelMetrics.json) and feed the app's Metrics tab.
+
+| Measure | Result |
+| :--- | :--- |
+| Accuracy | 82.6% |
+| Macro ROC-AUC (one class vs the rest) | 0.949 |
+| Melanoma recall, top prediction | 48.8% |
+| Melanoma + BCC caught, top prediction | 56.3% |
+| Cancers flagged at the 25% alert (melanoma + BCC + actinic keratosis) | 82.4% |
+| Melanoma flagged at the 25% alert | 81.5% |
+| Benign lesions cleared at the 25% alert | 81.4% (the alert fires on 31% of all lesions) |
+
+The top prediction misses many melanomas because the model often ranks them second. The 25% alert is the operating point a clinician actually sees, which is why both are shown.
+
+Baselines on the same test images (trained on the remaining lesions with balanced class weights):
+
+| Model | Accuracy | Macro AUC |
+| :--- | :--- | :--- |
+| **SkinScan v4** | **82.6%** | **0.949** |
+| ImageNet DenseNet121, not fine-tuned, + logistic regression | 72.7% | 0.910 |
+| Patient data only (age, sex, site) + logistic regression | 29.3% | 0.743 |
+| Always predicts the most common class (nevus) | 66.8% | 0.500 |
+
+The not-fine-tuned baseline catches more melanoma and BCC on the top prediction (63.3%) because balanced class weights push it to guess rare classes more often, at a large cost in accuracy. Macro AUC is the fairer comparison.
+
+**Limits to keep in mind**
+- One split of one public dataset, with no external validation.
+- HAM10000 is dermoscopy. Phone photos differ, and results on them have not been measured.
+- Hair removal is imperfect on blurry or fine hair; trim hair around the lesion and photograph in focus.
+- Decision support only, not a diagnosis.
+
+To reproduce (needs HAM10000 downloaded and extracted; from the repo root):
+
+```bash
+python3 -I ml_pipeline/evaluate_v4_holdout.py <ham10000_dir> src/data/modelMetrics.json
+python3 -I ml_pipeline/evaluate_baselines.py  <ham10000_dir> src/data/modelMetrics.json
+```
+
+---
+
+## Repository structure
 
 ```
 Skin_csncer/
-├── src/                                  # Frontend Application (React 18, Tailwind CSS, Lucide)
-│   ├── components/
-│   │   ├── Navbar.jsx                    # Header, navigation, audit log trigger
-│   │   ├── HeroSection.jsx               # DermaSensor aesthetic hero with live clinical counters
-│   │   ├── DiagnosticWorkbench.jsx       # Ingestion: Upload, live camera, 7-class benchmark selector
-│   │   ├── RiskGaugeCard.jsx             # 1.0–10.0 Spectral score dial & 4-tier risk matrix
-│   │   ├── GradCamVisualizer.jsx         # Live canvas: Raw / DullRazor / Grad-CAM / Contour
-│   │   ├── AbcdAnalysisCard.jsx          # Stolz ABCD dermoscopy rule quantification
-│   │   ├── ClinicalReportModal.jsx       # Printable hospital EHR Diagnostic Report
-│   │   ├── ResearchMetricsDashboard.jsx  # 7-Class Confusion Matrix, ROC-AUC (0.94), SDG 3, 9, 10
-│   │   └── MlPipelineModal.jsx           # Model architecture, formulas & code viewer
+├── src/                          # Web app (React 18, Vite, Tailwind CSS)
+│   ├── components/               # Navbar, HeroSection, DiagnosticWorkbench, RiskGaugeCard,
+│   │                             # VerificationWorkflowCard, GradCamVisualizer, AbcdAnalysisCard,
+│   │                             # ResearchMetricsDashboard, ClinicalReportModal, AuthModal,
+│   │                             # ScanHistoryDrawer, HitlFeedbackPanel, GuidedOnboarding, MlPipelineModal
 │   ├── data/
-│   │   └── benchmarks.js                 # 7 histopathologically verified HAM10000 cases
+│   │   ├── benchmarks.js         # Built-in demo case profiles
+│   │   └── modelMetrics.json     # Measured results shown in the Metrics tab
 │   ├── utils/
-│   │   └── imageProcessing.js            # In-browser Canvas processing, DullRazor, Grad-CAM, ABCD
-│   ├── App.jsx                           # Application state orchestrator
-│   ├── index.css                         # Tailwind CSS, glassmorphism, & print media queries
-│   └── main.jsx                          # React DOM entry point
-│
-├── ml_pipeline/                          # Production Machine Learning Package
-│   ├── __init__.py                       # Package exports
-│   ├── dullrazor.py                      # Morphological BlackHat hair filter & color constancy
-│   ├── risk_stratification.py            # 4-tier risk stratification & DermaSensor score logic
-│   ├── train_hybrid_model.py             # Multi-modal DenseNet121 + Metadata MLP with Focal Loss
-│   ├── gradcam.py                        # Grad-CAM heatmap extraction module
-│   └── evaluate_metrics.py               # Comprehensive clinical evaluation suite
-│
-├── notebooks/
-│   └── SkinScan_Colab_Training.ipynb     # Turnkey Google Colab training notebook
-│
-├── backend/
-│   ├── __init__.py                       # Package exports
-│   ├── app.py                            # FastAPI REST microservice
-│   └── requirements.txt                  # Python dependencies
-│
-├── .prettierrc.json                      # Code formatting configuration
-├── .gitignore                            # Clean repository ignore list
-├── package.json                          # Node project configuration
-├── tailwind.config.js                    # DermaSensor clinical theme configuration
-└── vite.config.js                        # Vite bundler configuration
+│   │   ├── api.js                # Backend client (auth, scans, analyze, health)
+│   │   └── imageProcessing.js    # In-browser fallback processing for demo mode
+│   └── App.jsx
+├── backend/                      # FastAPI service
+│   ├── app.py                    # Endpoints: /api/analyze, /api/health, auth, scans, MLOps queue
+│   ├── inference.py              # Model loading, preprocessing, Grad-CAM, referral logic
+│   ├── database.py               # SQLite accounts, scan history, biopsy feedback
+│   └── requirements.txt
+├── ml_pipeline/                  # Machine-learning package
+│   ├── dullrazor.py              # Hair removal, skin-tone calibration, ITA gate
+│   ├── risk_stratification.py    # 4-stage risk and cancer verification
+│   ├── gradcam.py                # Grad-CAM extraction
+│   ├── train_hybrid_model.py     # Training script
+│   ├── evaluate_metrics.py       # Metric computation and modelMetrics.json writer
+│   ├── holdout_common.py         # Split, preprocessing and metadata shared by evaluations
+│   ├── evaluate_v4_holdout.py    # Held-out evaluation of the shipped model
+│   └── evaluate_baselines.py     # Baselines on the same test images
+├── models/                       # Trained weights (the app loads skinscan_densenet121_v4.pth)
+├── notebooks/                    # Training notebooks
+├── scripts/                      # verify_demo.py (15 automated checks) and hair-removal tests
+└── deploy/huggingface/           # Dockerfile and steps for hosting the backend
 ```
 
 ---
 
-## 🚀 Quick Start Guide
+## Run it locally
 
-### 1. Run the Web Application
 ```bash
-# Install dependencies
+# Web app
 npm install
+npm run dev                       # http://localhost:5173
 
-# Start local development server
-npm run dev
-
-# Or build and launch preview
-npm run build
-npm run preview -- --port 5173
-```
-*Open [http://localhost:5173](http://localhost:5173) in your browser.*
-
----
-
-### 2. Format & Lint Code
-```bash
-npm run format
-```
-
----
-
-### 3. Run Python ML Tests
-```bash
-python3 ml_pipeline/risk_stratification.py
-python3 ml_pipeline/dullrazor.py
-python3 ml_pipeline/evaluate_metrics.py
-```
-
----
-
-### 4. Run FastAPI Backend (Optional)
-```bash
+# Backend (in a second terminal)
 pip install -r backend/requirements.txt
-python3 -m uvicorn backend.app:app --reload --port 8000
+python3 backend/app.py            # http://localhost:8000
+
+# Automated checks (model, preprocessing, API, auth, feedback queue)
+python3 scripts/verify_demo.py
 ```
 
----
+Without the backend the app still opens, but runs in demo mode with built-in cases instead of the real model.
 
-## 🎯 Clinical Performance Targets & SDG Alignments
+## Deploy
 
-| Metric | Target / Benchmark | Clinical Significance |
-| :--- | :--- | :--- |
-| **Malignant Recall (Sensitivity)** | **92.8% - 96.0%** | Minimizes catastrophic false negatives for Melanoma & BCC |
-| **Overall Multi-Class Accuracy** | **91.4%** | Balanced performance across all 7 lesion types |
-| **Macro ROC-AUC** | **0.942** | High discriminative threshold power |
-| **SDG 3 (Good Health)** | Target 3.4 | Early detection raises 5-year melanoma survival to >99% |
-| **SDG 9 (Innovation)** | Target 9.5 | Multi-modal neural feature fusion & Explainable AI |
-| **SDG 10 (Reduced Inequalities)** | Target 10.2 | Democratizes specialist dermatology access to rural areas |
+- **Web app:** Vercel. Set the environment variable `VITE_API_URL` to the backend's HTTPS address, then redeploy.
+- **Backend:** a Hugging Face Space (Docker). Steps are in [`deploy/huggingface/DEPLOY.md`](deploy/huggingface/DEPLOY.md). On the free tier the Space sleeps when idle and its disk resets on restart, so accounts and scan history are not kept.
 
 ---
 
-## 📜 License & Academic Attestation
-Developed as part of the **B.E. Major Project Phase-2** curriculum at **B.M.S. College of Engineering (BMSCE), Bengaluru** (Autonomous Institution under VTU).  
+## Sustainable Development Goals
+
+| Goal | How the project relates |
+| :--- | :--- |
+| **SDG 3: Good Health** (Target 3.4) | Helps catch skin cancer earlier, at the point of care |
+| **SDG 9: Innovation** (Target 9.5) | Combines image and patient data in one model and explains its output with Grad-CAM |
+| **SDG 10: Reduced Inequalities** (Target 10.2) | Aims to bring dermatology-style triage to clinics without a specialist nearby |
+
+---
+
+## License and academic attestation
+
+Developed as part of the **B.E. Major Project Phase-2** curriculum at **B.M.S. College of Engineering (BMSCE), Bengaluru** (Autonomous Institution under VTU).
 *"Service to Humanity is Service to God"*

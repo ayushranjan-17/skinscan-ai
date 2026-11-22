@@ -119,8 +119,8 @@ class FocalLoss(nn.Module):
             <div className="p-4 rounded-xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-purple-300 font-bold block text-sm">3. Two-Step Gating</span>
               <p className="text-xs text-derma-muted">
-                Tier 1 separates Benign vs Suspicious lesions (&gt;96% recall), Tier 2 determines
-                specific histological category.
+                Tier 1 separates benign from suspicious lesions, and Tier 2 determines the specific
+                lesion category.
               </p>
             </div>
 

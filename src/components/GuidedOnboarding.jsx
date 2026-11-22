@@ -419,8 +419,8 @@ export function HowItWorksGuide({ onDismiss }) {
               step: 3,
               icon: Brain,
               title: 'AI Analyzes the Image',
-              desc: 'Our AI removes hair artifacts, normalizes colors, and runs the image through a DenseNet121 neural network trained on 10,015 clinical skin images.',
-              tip: 'Takes about 4-5 seconds to complete',
+              desc: 'Our AI removes hair artifacts, normalizes colors, and runs the image through a DenseNet121 neural network trained on dermoscopy images from the HAM10000 dataset.',
+              tip: 'Usually takes a few seconds',
             },
             {
               step: 4,
