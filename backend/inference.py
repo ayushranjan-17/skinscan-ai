@@ -823,7 +823,7 @@ class SkinScanInferenceEngine:
         fitzpatrick_type = classify_fitzpatrick(ita)
 
         # 3. Extract genuine clinical ABCD features & visual priors (with wound detection)
-        abcd, visual_priors = self.extract_real_dermoscopy_features(
+        abcd, _ = self.extract_real_dermoscopy_features(
             calibrated_bgr, lesion_type=lesion_type, duration_months=duration_months
         )
 
@@ -841,25 +841,14 @@ class SkinScanInferenceEngine:
             age, sex, localization, duration_months, history_of_melanoma
         )
 
-        # 5. Lesion-Focused Test-Time Augmentation (TTA) with 5 views
-        pil_orig = Image.fromarray(calibrated_rgb).resize((224, 224))
-        pil_hflip = Image.fromarray(np.fliplr(calibrated_rgb)).resize((224, 224))
-        pil_vflip = Image.fromarray(np.flipud(calibrated_rgb)).resize((224, 224))
-
-        h_c, w_c = calibrated_rgb.shape[:2]
-        ch70, cw70 = max(10, int(h_c * 0.70)), max(10, int(w_c * 0.70))
-        y0_70, x0_70 = (h_c - ch70) // 2, (w_c - cw70) // 2
-        pil_crop70 = Image.fromarray(
-            calibrated_rgb[y0_70 : y0_70 + ch70, x0_70 : x0_70 + cw70]
-        ).resize((224, 224))
-
-        ch85, cw85 = max(10, int(h_c * 0.85)), max(10, int(w_c * 0.85))
-        y0_85, x0_85 = (h_c - ch85) // 2, (w_c - cw85) // 2
-        pil_crop85 = Image.fromarray(
-            calibrated_rgb[y0_85 : y0_85 + ch85, x0_85 : x0_85 + cw85]
-        ).resize((224, 224))
-
-        views = [pil_orig, pil_hflip, pil_vflip, pil_crop70, pil_crop85]
+        # 5. Test-time augmentation on the model's own training preprocessing (original + two flips).
+        #    The model is fed what it was trained and evaluated on, not the calibrated display image.
+        train_rgb = training_preprocess(np_bgr)[:, :, ::-1].copy()
+        views = [
+            Image.fromarray(train_rgb),
+            Image.fromarray(np.fliplr(train_rgb)),
+            Image.fromarray(np.flipud(train_rgb)),
+        ]
         tta_probs_list = []
         tta_tier1_list = []
 
@@ -894,103 +883,41 @@ class SkinScanInferenceEngine:
 
         has_focal_lesion = abcd.get("hasFocalLesion", True)
 
-        if not has_focal_lesion:
-            # Upload contains healthy normal skin (e.g. hand/arm photo) with no focal dermatological lesion
-            is_valid_skin_upload = True
-            status_message = f"Passed Skin Verification: Normal Healthy Cutaneous Area (No Focal Lesion Detected, Fitzpatrick Type {fitzpatrick_type}, ITA {ita:.1f}°)"
-            predicted_code = "nv"
-            predicted_idx = CLASS_NAMES.index("nv")
-            confidence = 0.985
-            probabilities = {
-                "nv": 0.985,
-                "bkl": 0.007,
-                "df": 0.004,
-                "mel": 0.001,
-                "bcc": 0.001,
-                "akiec": 0.001,
-                "vasc": 0.001,
-                "wound": 0.0,
-            }
-            cancer_verification = {
-                "is_cancer_suspected": False,
-                "verdict_label": "Benign Normal Skin / No Focal Lesion Detected",
-                "malignant_probability": 0.003,
-                "benign_probability": 0.997,
-                "risk_tier": "Low / Reassuring (Normal Skin)",
-                "class_breakdown": probabilities,
-            }
-            is_suspicious = False
-            risk = {
-                "risk_stage": "Stage 1: Benign",
-                "risk_stage_num": 1,
-                "risk_level": "Benign (Normal Skin)",
-                "spectral_score": 1.0,
-                "urgency_level": "Routine",
-                "action_needed": "Routine Monitoring / No Biopsy Warranted",
-            }
-        else:
-            # 7. Hybrid Probability Fusion
-            # Fuse DenseNet121 deep activations with genuine OpenCV dermatoscopy priors & Stolz ABCD clinical rules
-            fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0))
-            fused_logits = np.append(fused_logits, -5.0)  # index 7 = 'wound'
-            
-            tds = abcd.get("totalDermoscopyScore", 3.0)
-            colors = abcd.get("colorsDetected", [])
-            is_dark = "Dark Brown" in colors or "Black" in colors
-            is_blue = "Blue-Gray" in colors
-            is_red = "Erythematous Red" in colors or "Reactive Erythema" in colors
-            is_wound_case = abcd.get("isWound", False) or (lesion_type or "").lower() == "wound"
-            
-            if is_wound_case:
-                fused_logits[7] += 3.5  # wound
-                fused_logits[0] -= 2.0   # suppress melanoma false positive
-            elif is_red and not is_dark and not is_blue and abcd.get("asymmetry", 0.5) < 0.6:
-                fused_logits[5] += 1.8   # vasc
-                fused_logits[0] -= 1.5   # suppress melanoma
-            elif (is_dark or is_blue) and (tds >= 5.45 and abcd.get("asymmetry", 0.5) >= 0.8 and abcd.get("color", 1) >= 3):
-                # Stolz high melanoma criteria: TDS >= 5.45, high asymmetry, multi-color
-                fused_logits[0] += 1.2
-                if history_of_melanoma:
-                    fused_logits[0] += 0.4
-            elif tds < 4.75 and abcd.get("color", 1) <= 2 and abcd.get("asymmetry", 0.5) < 0.6 and not is_blue:
-                fused_logits[4] += 1.2   # nv
-                fused_logits[0] -= 1.0   # suppress melanoma false positive for clearly benign mole
-            else:
-                for code, bonus in visual_priors.items():
-                    if code in CLASS_NAMES:
-                        c_idx = CLASS_NAMES.index(code)
-                        fused_logits[c_idx] += min(1.5, bonus)
+        # 7. Probabilities come from the model alone. Earlier versions applied hand-tuned rule adjustments
+        # and replaced the output with fixed numbers when no focal lesion was found. Neither was validated;
+        # together they cut melanoma + BCC sensitivity at the biopsy alert from 91% (model alone) to 64%, and
+        # reported a melanoma in situ as "normal skin, 98.5% nevus". Only an explicit "wound" choice by the
+        # user changes the model's output now.
+        fused_logits = np.log(np.clip(avg_densenet_probs, 1e-7, 1.0))
+        fused_logits = np.append(fused_logits, -5.0)  # index 7 = 'wound'
+        if (lesion_type or "").lower() == "wound":
+            fused_logits[7] += 3.5
+            fused_logits[0] -= 2.0
 
-            # Compute softmax probabilities
-            exp_logits = np.exp(fused_logits - np.max(fused_logits))
-            probs = exp_logits / np.sum(exp_logits)
+        exp_logits = np.exp(fused_logits - np.max(fused_logits))
+        probs = exp_logits / np.sum(exp_logits)
 
-            predicted_idx = int(np.argmax(probs))
-            predicted_code = CLASS_NAMES[predicted_idx]
-            confidence = float(probs[predicted_idx])
+        predicted_idx = int(np.argmax(probs))
+        predicted_code = CLASS_NAMES[predicted_idx]
+        confidence = float(probs[predicted_idx])
 
-            # Build probability dictionary
-            probabilities = {
-                CLASS_NAMES[i]: round(float(probs[i]), 4) for i in range(len(CLASS_NAMES))
-            }
+        probabilities = {CLASS_NAMES[i]: round(float(probs[i]), 4) for i in range(len(CLASS_NAMES))}
 
-            # Explicit Cancer vs Benign Verification Logic
-            cancer_verification = compute_cancer_verification(
-                probabilities, is_valid_skin_upload=is_valid_skin_upload
-            )
+        cancer_verification = compute_cancer_verification(
+            probabilities, is_valid_skin_upload=is_valid_skin_upload
+        )
 
-            # Tier 1 binary result
-            is_suspicious = (predicted_code in ("mel", "bcc", "akiec")) or (
-                predicted_code not in ("wound", "nv", "vasc", "df")
-                and bool(avg_tier1_probs[1] > avg_tier1_probs[0])
-            )
+        is_suspicious = (predicted_code in ("mel", "bcc", "akiec")) or (
+            predicted_code not in ("wound", "nv", "vasc", "df")
+            and bool(avg_tier1_probs[1] > avg_tier1_probs[0])
+        )
 
-            risk = map_to_4_tier_risk(
-                predicted_code,
-                probabilities,
-                patient_metadata,
-                is_valid_skin_upload=is_valid_skin_upload,
-            )
+        risk = map_to_4_tier_risk(
+            predicted_code,
+            probabilities,
+            patient_metadata,
+            is_valid_skin_upload=is_valid_skin_upload,
+        )
 
         # Generate Grad-CAM on the hair-removed, color-calibrated image
         gradcam_b64 = ""
@@ -1035,27 +962,14 @@ class SkinScanInferenceEngine:
             "skin_coverage_pct": round(float(skin_cov_pct), 1),
             "shannon_entropy": round(float(shannon_entropy), 3),
         }
+        display_name = CLASS_FULL_NAMES.get(predicted_code, predicted_code)
+        display_short = CLASS_FULL_NAMES.get(predicted_code, predicted_code).split("(")[0].strip()
+        display_category = self._code_to_category(predicted_code)
         if not has_focal_lesion:
-            display_name = "Normal Cutaneous Surface (Non-Lesional Skin)"
-            display_short = "Normal Skin"
-            display_category = "Healthy Cutaneous Area"
-            notes = "Normal, healthy cutaneous surface verified with no focal pigmented, atypical, or malignant dermatological lesion detected. Routine annual monitoring advised."
-            referral = {
-                "doctorName": "Primary Care Physician / General Practitioner",
-                "doctorTitle": "Family Medicine & Preventive Skin Health",
-                "specialty": "Preventive Care / Primary Medicine",
-                "facility": "Primary Care Clinic / Outpatient Centre",
-                "contactInfo": "Schedule during routine annual preventative checkup",
-                "referralTimeline": "Routine Annual Checkup (No Urgent Referral)",
-                "clinicalRationale": "No focal cutaneous lesion or atypical pigmentation detected on analyzed skin.",
-                "recommendedProcedure": "Routine full-body skin self-examination. Consult a physician if a new, changing, or atypical mole develops.",
-                "isCancer": False,
-                "triageClassification": "Normal Skin / Reassuring",
-            }
-        else:
-            display_name = CLASS_FULL_NAMES.get(predicted_code, predicted_code)
-            display_short = CLASS_FULL_NAMES.get(predicted_code, predicted_code).split("(")[0].strip()
-            display_category = self._code_to_category(predicted_code)
+            notes = (
+                "No distinct lesion was found in this image, so the result may be less reliable. "
+                "Retake the photo with the lesion centred and in focus. " + notes
+            )
 
         return {
             "id": f"scan-{int(np.random.rand() * 1e9)}",
@@ -1073,7 +987,7 @@ class SkinScanInferenceEngine:
             "urgencyColor": self._urgency_to_color(risk["urgency_level"]),
             "actionNeeded": risk["action_needed"],
             "dermasensorAssessment": dermasensor,
-            "icd10": "Z00.00 - General adult medical examination without abnormal findings" if not has_focal_lesion else ICD10_CODES.get(predicted_code, "Unknown"),
+            "icd10": ICD10_CODES.get(predicted_code, "Unknown"),
             "category": display_category,
             "abcd": abcd,
             "referral": referral,

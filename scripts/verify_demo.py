@@ -615,5 +615,25 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         print(f"  [Pass] Alert threshold {BIOPSY_ALERT_THRESHOLD} is identical in Python, the front end and the metrics file")
 
 
+    def test_17_no_hardcoded_output_when_no_lesion_found(self):
+        """A photo with no distinct lesion must still return the model's real probabilities, never fixed numbers."""
+        resp = self.client.post(
+            "/api/analyze",
+            files={"file": ("plain.jpg", create_synthetic_image("JPEG", "RGB", draw_lesion=False), "image/jpeg")},
+            data={"age": "55", "sex": "male", "localization": "back", "lesion_type": "mole"},
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        data = resp.json()
+        self.assertFalse(data["abcd"]["hasFocalLesion"], "synthetic plain skin should have no focal lesion")
+        probs = data["probabilities"]
+        # The removed override used these exact numbers (nv 0.985, mel 0.001) and malignant 0.003.
+        self.assertFalse(probs["nv"] == 0.985 and probs["mel"] == 0.001, "output was replaced by fixed numbers")
+        self.assertNotEqual(data["malignant_probability"], 0.003)
+        self.assertAlmostEqual(sum(probs.values()), 1.0, places=1)
+        self.assertNotIn("Normal Cutaneous Surface", data["name"])
+        self.assertIn("No distinct lesion", data["clinicalNotes"])
+        print("  [Pass] No-lesion photo returns real model probabilities, not a hard-coded 'normal skin' result")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
