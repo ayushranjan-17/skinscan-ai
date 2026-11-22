@@ -1,21 +1,139 @@
 {
-  "status": "pending",
+  "status": "evaluated",
   "model": "skinscan_densenet121_v4.pth",
-  "dataset": null,
-  "n_test": null,
-  "overall_accuracy": null,
-  "malignant_sensitivity": null,
-  "malignant_specificity": null,
-  "macro_auc": null,
+  "dataset": "HAM10000, lesion-level split (seed 42, 15% test), notebook preprocessing",
+  "n_test": 1497,
+  "overall_accuracy": 0.8256513026052105,
+  "malignant_sensitivity": 0.5632653060994586,
+  "malignant_specificity": 0.9568690095770219,
+  "macro_auc": 0.9492702389275135,
   "classes": [
-    { "code": "MEL", "name": "Melanoma", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "BCC", "name": "Basal Cell Carcinoma", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "AKIEC", "name": "Actinic Keratosis", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "BKL", "name": "Benign Keratosis", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "NV", "name": "Melanocytic Nevus", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "VASC", "name": "Vascular Lesion", "recall": null, "precision": null, "f1": null, "auc": null },
-    { "code": "DF", "name": "Dermatofibroma", "recall": null, "precision": null, "f1": null, "auc": null }
+    {
+      "code": "MEL",
+      "name": "Melanoma",
+      "recall": 0.4880952380952381,
+      "precision": 0.6612903225806451,
+      "f1": 0.5616438356164384,
+      "auc": 0.897264323336558
+    },
+    {
+      "code": "BCC",
+      "name": "Basal Cell Carcinoma",
+      "recall": 0.6623376623376623,
+      "precision": 0.75,
+      "f1": 0.7034482758620689,
+      "auc": 0.9492957746478873
+    },
+    {
+      "code": "AKIEC",
+      "name": "Actinic Keratosis",
+      "recall": 0.6078431372549019,
+      "precision": 0.7045454545454546,
+      "f1": 0.6526315789473685,
+      "auc": 0.982561766061888
+    },
+    {
+      "code": "BKL",
+      "name": "Benign Keratosis",
+      "recall": 0.7388535031847133,
+      "precision": 0.5471698113207547,
+      "f1": 0.6287262872628726,
+      "auc": 0.9269654910162564
+    },
+    {
+      "code": "NV",
+      "name": "Melanocytic Nevus",
+      "recall": 0.927,
+      "precision": 0.9142011834319527,
+      "f1": 0.9205561072492552,
+      "auc": 0.9454144869215292
+    },
+    {
+      "code": "VASC",
+      "name": "Vascular Lesion",
+      "recall": 0.7272727272727273,
+      "precision": 0.9411764705882353,
+      "f1": 0.8205128205128205,
+      "auc": 0.9626810477657934
+    },
+    {
+      "code": "DF",
+      "name": "Dermatofibroma",
+      "recall": 0.5909090909090909,
+      "precision": 0.7222222222222222,
+      "f1": 0.65,
+      "auc": 0.980708782742681
+    }
   ],
-  "confusion_matrix": null,
-  "comparison": []
+  "confusion_matrix": [
+    [
+      82,
+      0,
+      3,
+      30,
+      53,
+      0,
+      0
+    ],
+    [
+      5,
+      51,
+      5,
+      10,
+      5,
+      0,
+      1
+    ],
+    [
+      0,
+      2,
+      31,
+      17,
+      0,
+      0,
+      1
+    ],
+    [
+      11,
+      4,
+      5,
+      116,
+      19,
+      0,
+      2
+    ],
+    [
+      25,
+      9,
+      0,
+      37,
+      927,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      0,
+      4,
+      16,
+      0
+    ],
+    [
+      0,
+      1,
+      0,
+      2,
+      6,
+      0,
+      13
+    ]
+  ],
+  "comparison": [],
+  "alert_threshold": 0.25,
+  "alert_sensitivity": 0.8243243243243243,
+  "alert_specificity": 0.8143213988343048,
+  "alert_rate": 0.3119572478289913,
+  "melanoma_alert_sensitivity": 0.8154761904761905
 }

@@ -67,7 +67,7 @@ def calculate_clinical_metrics(y_true, y_pred, y_prob):
         'confusion_matrix': cm
     }
 
-def write_model_metrics_json(metrics, y_true, y_prob, dataset, model, path='src/data/modelMetrics.json'):
+def write_model_metrics_json(metrics, y_true, y_prob, dataset, model, path='src/data/modelMetrics.json', extra=None):
     """Write real evaluation results in the shape the frontend Metrics tab reads."""
     import json
 
@@ -100,6 +100,8 @@ def write_model_metrics_json(metrics, y_true, y_prob, dataset, model, path='src/
         'confusion_matrix': metrics['confusion_matrix'],
         'comparison': [],
     }
+    if extra:
+        out.update(extra)
     with open(path, 'w') as f:
         json.dump(out, f, indent=2)
     return out

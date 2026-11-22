@@ -67,18 +67,35 @@ export default function ResearchMetricsDashboard() {
       </div>
 
       {evaluated && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            ['Accuracy', pct(metrics.overall_accuracy)],
-            ['Malignant sensitivity', pct(metrics.malignant_sensitivity)],
-            ['Malignant specificity', pct(metrics.malignant_specificity)],
-            ['Macro AUC', dec(metrics.macro_auc)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl bg-derma-bg/70 border border-derma-border p-3">
-              <p className="text-xs text-derma-muted">{label}</p>
-              <p className="mt-1 text-xl font-semibold text-slate-50 font-mono">{value}</p>
-            </div>
-          ))}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              ['Accuracy', pct(metrics.overall_accuracy)],
+              ['Macro AUC', dec(metrics.macro_auc)],
+              ['Melanoma + BCC caught (top prediction)', pct(metrics.malignant_sensitivity)],
+              metrics.alert_sensitivity != null && [
+                `Cancers flagged (alert at ${pct(metrics.alert_threshold)})`,
+                pct(metrics.alert_sensitivity),
+              ],
+              metrics.alert_specificity != null && [
+                `Benign cleared (alert at ${pct(metrics.alert_threshold)})`,
+                pct(metrics.alert_specificity),
+              ],
+            ]
+              .filter(Boolean)
+              .map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-derma-bg/70 border border-derma-border p-3">
+                  <p className="text-xs text-derma-muted">{label}</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-50 font-mono">{value}</p>
+                </div>
+              ))}
+          </div>
+          <p className="text-sm text-derma-muted">
+            &quot;Top prediction&quot; counts a lesion as caught only if the single most likely class
+            is melanoma or BCC. The app also raises a biopsy alert when the combined melanoma, BCC
+            and actinic keratosis probability reaches the alert level, and that is what a clinician
+            sees. These figures use model probabilities only, not the extra checks in the app.
+          </p>
         </div>
       )}
 
