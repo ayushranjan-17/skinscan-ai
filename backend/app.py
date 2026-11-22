@@ -25,6 +25,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from ml_pipeline.risk_stratification import BIOPSY_ALERT_THRESHOLD
+
 try:
     from backend.inference import SkinScanInferenceEngine, get_engine
 except ImportError:
@@ -307,7 +309,8 @@ def health():
     return {
         "status": "healthy",
         "model_loaded": eng.model_loaded if eng else False,
-        "model_version": "DenseNet121-MultiModal-FocalLoss-v2.0",
+        "model_version": "DenseNet121-MultiModal-FocalLoss-v4",
+        "alert_threshold": BIOPSY_ALERT_THRESHOLD,
         "device": str(eng.device) if eng else "unknown",
         "gpu_available": torch.cuda.is_available() or (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
         "gpu_name": (

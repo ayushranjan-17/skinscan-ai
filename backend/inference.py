@@ -1091,7 +1091,7 @@ class SkinScanInferenceEngine:
                 "gradcam": gradcam_b64,
             },
             "analyzedAt": __import__("datetime").datetime.now().isoformat(),
-            "modelVersion": "DenseNet121-MultiModal-FocalLoss-v2.0",
+            "modelVersion": "DenseNet121-MultiModal-FocalLoss-v4",
             "imagePattern": predicted_code,
         }
 
