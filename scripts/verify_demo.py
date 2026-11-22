@@ -635,5 +635,20 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         print("  [Pass] No-lesion photo returns real model probabilities, not a hard-coded 'normal skin' result")
 
 
+    def test_18_actinic_keratosis_is_stage_3_not_4(self):
+        """Stage 4 is melanoma / BCC. A lesion that is mostly actinic keratosis is Stage 3 even when the total
+        malignant-group probability is high; Stage 4 needs the invasive cancers (mel + bcc) themselves."""
+        ak = {"mel": 0.003, "bcc": 0.147, "akiec": 0.686, "nv": 0.078, "bkl": 0.078, "df": 0.001, "vasc": 0.0, "wound": 0.007}
+        risk = map_to_4_tier_risk("akiec", ak)
+        self.assertEqual(risk["risk_stage_num"], 3)
+        self.assertTrue(compute_cancer_verification(ak)["is_cancer_suspected"], "the biopsy alert must still fire")
+
+        mel = {"mel": 0.60, "bcc": 0.02, "akiec": 0.05, "nv": 0.30, "bkl": 0.03}
+        self.assertEqual(map_to_4_tier_risk("mel", mel)["risk_stage_num"], 4)
+        bcc_plus_ak = {"mel": 0.02, "bcc": 0.45, "akiec": 0.20, "nv": 0.30, "bkl": 0.03}
+        self.assertEqual(map_to_4_tier_risk("bcc", bcc_plus_ak)["risk_stage_num"], 4)
+        print("  [Pass] Actinic keratosis maps to Stage 3; Stage 4 still needs melanoma or BCC")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

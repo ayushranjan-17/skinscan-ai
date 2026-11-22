@@ -191,10 +191,11 @@ def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=N
     p_mel = float(probability_dict.get('mel', 0.0)) if probability_dict else 0.0
     p_bcc = float(probability_dict.get('bcc', 0.0)) if probability_dict else 0.0
     p_akiec = float(probability_dict.get('akiec', 0.0)) if probability_dict else 0.0
-    mal_prob = p_mel + p_bcc + p_akiec
+    p_cancer = p_mel + p_bcc  # invasive cancers; actinic keratosis is pre-malignant (Stage 3), never Stage 4 by itself
+    mal_prob = p_cancer + p_akiec
 
     if code != 'wound' and mal_prob >= BIOPSY_ALERT_THRESHOLD:
-        if p_mel >= 0.35 or mal_prob >= 0.40:
+        if p_mel >= 0.35 or p_cancer >= 0.40:
             stage_num = 4
             stage_name = 'Stage 4: Malignant'
             risk_level = 'Malignant'
