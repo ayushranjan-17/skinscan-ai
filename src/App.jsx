@@ -26,6 +26,7 @@ import {
   checkBackendHealth,
   getBackendStatusLabel,
   getUser,
+  getToken,
   authGetMe,
   clearAuth,
 } from './utils/api';
@@ -104,14 +105,21 @@ export default function App() {
       if (!health.online && attempt < 24) timer = setTimeout(() => check(attempt + 1), 5000);
     };
     check(0);
-    authGetMe().then((u) => {
-      if (u) setCurrentUser(u);
-    });
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, []);
+
+  // Validate the saved login once the backend answers. A restarted host wipes accounts and
+  // changes the signing secret, so a saved login can be dead; sign the user out in the UI too.
+  useEffect(() => {
+    if (!backendHealth.online) return;
+    authGetMe().then((u) => {
+      if (u) setCurrentUser(u);
+      else if (!getToken()) setCurrentUser(null);
+    });
+  }, [backendHealth.online]);
 
   // Mark a step as completed
   const completeStep = useCallback((stepId) => {
