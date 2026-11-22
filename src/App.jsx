@@ -94,10 +94,23 @@ export default function App() {
 
   // Check backend health and session validity on mount
   useEffect(() => {
-    checkBackendHealth().then(setBackendHealth);
+    let cancelled = false;
+    let timer;
+    // A sleeping free-tier backend needs a minute or two to wake, so keep checking while offline.
+    const check = async (attempt) => {
+      const health = await checkBackendHealth();
+      if (cancelled) return;
+      setBackendHealth(health);
+      if (!health.online && attempt < 24) timer = setTimeout(() => check(attempt + 1), 5000);
+    };
+    check(0);
     authGetMe().then((u) => {
       if (u) setCurrentUser(u);
     });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Mark a step as completed

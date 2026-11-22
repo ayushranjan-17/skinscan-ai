@@ -189,7 +189,7 @@ export async function exportRetrainQueue() {
 export async function checkBackendHealth() {
   try {
     const response = await fetch(`${API_BASE_URL}/api/health`, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
