@@ -162,8 +162,9 @@ export default function ResearchMetricsDashboard() {
             is melanoma or BCC. The app also raises a biopsy alert when the combined melanoma, BCC
             and actinic keratosis probability reaches the alert level, and that is what a clinician
             sees. The level was chosen on separate validation lesions to catch about 90% of
-            melanoma and BCC, then measured here on the test lesions. These figures use model
-            probabilities only, not the extra checks in the app.
+            melanoma and BCC, then measured here on the test lesions. The alert figures come from the
+            app's full analysis path. Accuracy, AUC and the top-prediction figure come from the model
+            alone.
           </p>
         </div>
       )}

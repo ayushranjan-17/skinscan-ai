@@ -36,7 +36,7 @@
 
 ## Measured results
 
-Evaluated on **1,497 held-out HAM10000 images** from a lesion-level split (15% of lesions, seed 42, so no lesion appears in both training and test), using the same preprocessing as training. The numbers live in [`src/data/modelMetrics.json`](src/data/modelMetrics.json) and feed the app's Metrics tab.
+Evaluated on **1,497 held-out HAM10000 images** from a lesion-level split (15% of lesions, seed 42, so no lesion appears in both training and test), using the same preprocessing as training. Accuracy, AUC and the top-prediction figures come from the model alone; the alert figures come from the app's full analysis path (`ml_pipeline/evaluate_live_path.py`). The numbers live in [`src/data/modelMetrics.json`](src/data/modelMetrics.json) and feed the app's Metrics tab.
 
 | Measure | Result |
 | :--- | :--- |
@@ -44,12 +44,14 @@ Evaluated on **1,497 held-out HAM10000 images** from a lesion-level split (15% o
 | Macro ROC-AUC (one class vs the rest) | 0.949 |
 | Melanoma recall, top prediction | 48.8% |
 | Melanoma + BCC caught, top prediction | 56.3% |
-| **Melanoma + BCC flagged at the 17.5% alert** | **91.0%** (95% CI 86.8% to 94.0%) |
-| Melanoma flagged at the alert | 90.5% |
-| Benign lesions cleared at the alert | 72.1% |
-| Alert fires on | 40.1% of all lesions; 44% of alerts are melanoma, BCC or actinic keratosis |
+| **Melanoma + BCC flagged at the 17.5% alert** | **91.8%** (95% CI 87.7% to 94.7%) |
+| Melanoma flagged at the alert | 91.7% |
+| Benign lesions cleared at the alert | 71.0% |
+| Alert fires on | about 41% of all lesions; about 44% of alerts are melanoma, BCC or actinic keratosis |
 
-The top prediction misses many melanomas because the model often ranks them second. The alert is the operating point a clinician actually sees, which is why both are shown. The 17.5% level was chosen on separate validation lesions to reach about 90% melanoma + BCC sensitivity, then measured once on the test lesions (validation 90.4%, test 91.0%). It is a trade-off: at 25% the alert flags 84% of melanoma + BCC and clears 80% of benign lesions, and at 10% it flags 96% and clears 58%.
+The top prediction misses many melanomas because the model often ranks them second. The alert is the operating point a clinician actually sees, which is why both are shown. The 17.5% level was first picked on separate validation lesions to reach about 90% melanoma + BCC sensitivity, then re-checked through the app's full analysis path (validation 91.2%, test 91.8%). Picking the level fresh on that path gives 19%, which flags 90.6% and clears 74.0%; 17.5% was kept for its extra margin. It is a trade-off: at 25% the alert flags 84.9% of melanoma + BCC and clears 81.5% of benign lesions, and at 10% it flags 95.9% and clears 57.0%.
+
+The app gives probabilities from the model alone. Earlier versions also applied hand-tuned rule adjustments and replaced the output with fixed numbers when no lesion was found. Neither was validated, and together they cut the share of melanoma + BCC flagged from 91.8% to 63.7% on the same lesions, so both were removed.
 
 Baselines on the same test images (trained on the remaining lesions with balanced class weights):
 
@@ -64,6 +66,7 @@ The not-fine-tuned baseline catches more melanoma and BCC on the top prediction 
 
 **Limits to keep in mind**
 - One split of one public dataset, with no external validation.
+- Acral and volar skin (palms, soles, toes) is almost absent from the training data: HAM10000 has 7 acral images, none melanoma. Two DermNet dermoscopy images of an acral melanoma in situ were not flagged (14.5% and 7.2% malignant probability, both under the alert).
 - HAM10000 is dermoscopy. Phone photos differ, and results on them have not been measured.
 - The model depends on its exact training preprocessing. Feeding it the cleaner hair-removed display image instead cut melanoma + BCC sensitivity from about 90% to 68% at the same threshold, so the app gives the model the training version and shows the cleaner one on screen only.
 - Hair removal is imperfect on blurry or fine hair; trim hair around the lesion and photograph in focus.
@@ -74,6 +77,7 @@ To reproduce (needs HAM10000 downloaded and extracted; from the repo root):
 ```bash
 python3 -I ml_pipeline/evaluate_v4_holdout.py <ham10000_dir> src/data/modelMetrics.json
 python3 -I ml_pipeline/evaluate_baselines.py  <ham10000_dir> src/data/modelMetrics.json
+python3 -I ml_pipeline/evaluate_live_path.py  <ham10000_dir> src/data/modelMetrics.json   # about 25 minutes
 ```
 
 ---
@@ -107,6 +111,7 @@ Skin_csncer/
 │   ├── evaluate_metrics.py       # Metric computation and modelMetrics.json writer
 │   ├── holdout_common.py         # Split, preprocessing and metadata shared by evaluations
 │   ├── evaluate_v4_holdout.py    # Held-out evaluation of the shipped model
+│   ├── evaluate_live_path.py     # Alert figures measured through the app's full analysis path
 │   └── evaluate_baselines.py     # Baselines on the same test images
 ├── models/                       # Trained weights (the app loads skinscan_densenet121_v4.pth)
 ├── notebooks/                    # Training notebooks

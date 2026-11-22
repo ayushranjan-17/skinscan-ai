@@ -2996,10 +2996,15 @@
     }
   ],
   "alert_threshold": 0.175,
-  "cancer_alert_sensitivity": 0.9102040816326531,
-  "alert_sensitivity": 0.8986486486486487,
-  "melanoma_alert_sensitivity": 0.9047619047619048,
-  "alert_specificity": 0.7210657785179018,
-  "alert_rate": 0.4014696058784235,
-  "alert_ppv": 0.4425956738768719
+  "cancer_alert_sensitivity": 0.9183673469387755,
+  "alert_sensitivity": 0.9054054054054054,
+  "melanoma_alert_sensitivity": 0.9166666666666666,
+  "alert_specificity": 0.71,
+  "alert_rate": 0.4116833667334669,
+  "alert_ppv": 0.4348602119132227,
+  "alert_basis": "live predict() path; all melanoma, BCC and actinic keratosis test lesions, 400 of 1201 benign",
+  "cancer_alert_sensitivity_ci": [
+    0.8773,
+    0.9465
+  ]
 }
