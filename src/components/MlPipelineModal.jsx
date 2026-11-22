@@ -68,7 +68,7 @@ class FocalLoss(nn.Module):
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
-      <div className="relative w-full max-w-4xl bg-derma-card border border-derma-border rounded-3xl shadow-2xl overflow-hidden text-slate-100 max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-4xl bg-derma-card border border-derma-border rounded-2xl shadow-2xl overflow-hidden text-slate-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="p-5 bg-derma-surface/90 border-b border-derma-border flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -76,17 +76,17 @@ class FocalLoss(nn.Module):
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white font-sans">
+              <h2 className="text-base font-bold text-slate-50 font-sans">
                 DenseNet121 + Metadata MLP Hybrid Architecture
               </h2>
-              <p className="text-[11px] text-derma-muted">
+              <p className="text-xs text-derma-muted">
                 BMSCE Phase-2 Production Model Specification & Mathematical Formulations
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-derma-card text-slate-400 hover:text-white transition-all"
+            className="p-1.5 rounded-xl hover:bg-derma-card text-slate-400 hover:text-slate-50 transition-all"
           >
             <X className="w-5 h-5" />
           </button>
@@ -96,50 +96,50 @@ class FocalLoss(nn.Module):
         <div className="p-6 sm:p-8 overflow-y-auto space-y-6 text-xs text-slate-300">
           {/* Key Advantages Matrix */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
+            <div className="p-4 rounded-xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-derma-accent font-bold block text-sm">
                 1. Multi-Modal Fusion
               </span>
-              <p className="text-[11px] text-derma-muted">
+              <p className="text-xs text-derma-muted">
                 Combines 1024-d DenseNet visual vectors with patient age, sex, and anatomical
                 location priors for higher clinical accuracy.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
+            <div className="p-4 rounded-xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-derma-teal font-bold block text-sm">
                 2. Focal Loss (γ = 2.0)
               </span>
-              <p className="text-[11px] text-derma-muted">
+              <p className="text-xs text-derma-muted">
                 Penalizes hard malignant errors, resolving the 60:1 Benign Nevi (`nv`) to
                 Dermatofibroma (`df`) class imbalance.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
+            <div className="p-4 rounded-xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-purple-300 font-bold block text-sm">3. Two-Step Gating</span>
-              <p className="text-[11px] text-derma-muted">
+              <p className="text-xs text-derma-muted">
                 Tier 1 separates Benign vs Suspicious lesions (&gt;96% recall), Tier 2 determines
                 specific histological category.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-derma-bg/80 border border-derma-border space-y-1">
+            <div className="p-4 rounded-xl bg-derma-bg/80 border border-derma-border space-y-1">
               <span className="text-amber-300 font-bold block text-sm">4. Asian Skin Calibration</span>
-              <p className="text-[11px] text-derma-muted">
+              <p className="text-xs text-derma-muted">
                 Melanin-resilient DullRazor (R + LAB L*), Fitzpatrick III–V ITA standardization, 5-view TTA, and Shannon entropy OOD gating.
               </p>
             </div>
           </div>
 
           {/* Mathematical Equations */}
-          <div className="p-4 rounded-2xl bg-derma-bg/90 border border-derma-border space-y-2">
-            <h3 className="font-bold text-white text-xs uppercase tracking-wider flex items-center space-x-1.5">
+          <div className="p-4 rounded-xl bg-derma-bg/90 border border-derma-border space-y-2">
+            <h3 className="font-bold text-slate-50 text-xs flex items-center space-x-1.5">
               <BookOpen className="w-3.5 h-3.5 text-derma-accent" />
               <span>Core Mathematical Formulations</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <div className="p-3 bg-derma-card rounded-xl border border-derma-border font-mono">
                 <span className="text-derma-accent font-bold block mb-1">Focal Loss:</span>
                 <code>FL(p_t) = -α_t (1 - p_t)^γ \log(p_t)</code>
@@ -171,7 +171,7 @@ class FocalLoss(nn.Module):
           {/* Python Code Viewer */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-white text-xs uppercase tracking-wider flex items-center space-x-1.5">
+              <span className="font-bold text-slate-50 text-xs flex items-center space-x-1.5">
                 <Code2 className="w-4 h-4 text-derma-accent" />
                 <span>Production Model Implementation (PyTorch)</span>
               </span>
@@ -188,8 +188,8 @@ class FocalLoss(nn.Module):
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950 border border-derma-border overflow-x-auto">
-              <pre className="font-mono text-[11px] text-slate-300 leading-relaxed">
+            <div className="p-4 rounded-xl bg-slate-950 border border-derma-border overflow-x-auto">
+              <pre className="font-mono text-xs text-slate-300 leading-relaxed">
                 {pythonSnippet}
               </pre>
             </div>

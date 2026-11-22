@@ -68,9 +68,9 @@ export default function ScanHistoryDrawer({
               <History className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight flex items-center space-x-2">
+              <h2 className="text-base font-bold text-slate-50 tracking-tight flex items-center space-x-2">
                 <span>Persistent Scan History</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-derma-surface text-derma-teal border border-derma-border">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-derma-surface text-derma-teal border border-derma-border">
                   SQLite
                 </span>
               </h2>
@@ -82,7 +82,7 @@ export default function ScanHistoryDrawer({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-derma-surface transition-all"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-50 hover:bg-derma-surface transition-all"
           >
             <X className="w-5 h-5" />
           </button>
@@ -97,11 +97,11 @@ export default function ScanHistoryDrawer({
             </div>
           ) : scans.length === 0 ? (
             <div className="py-20 text-center space-y-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-derma-surface border border-derma-border flex items-center justify-center text-slate-500">
+              <div className="w-14 h-14 mx-auto rounded-xl bg-derma-surface border border-derma-border flex items-center justify-center text-slate-500">
                 <FileText className="w-7 h-7" />
               </div>
               <div className="max-w-xs mx-auto">
-                <h3 className="text-sm font-bold text-white">No scans recorded yet</h3>
+                <h3 className="text-sm font-bold text-slate-50">No scans recorded yet</h3>
                 <p className="text-xs text-derma-muted mt-1">
                   Upload and analyze a skin lesion while signed in to automatically store cases here.
                 </p>
@@ -118,22 +118,22 @@ export default function ScanHistoryDrawer({
               return (
                 <div
                   key={scan.id}
-                  className="p-4 rounded-2xl bg-derma-card/90 border border-derma-border hover:border-derma-accent/50 transition-all space-y-3"
+                  className="p-4 rounded-xl bg-derma-card/90 border border-derma-border hover:border-derma-accent/50 transition-all space-y-3"
                 >
                   {/* Top Bar: Disease, Stage & Date */}
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-white">
+                        <span className="text-sm font-bold text-slate-50">
                           {scan.predicted_class || 'Lesion Triage'}
                         </span>
                         {scan.icd10_code && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-derma-surface text-slate-300 border border-derma-border">
+                          <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-derma-surface text-slate-300 border border-derma-border">
                             {scan.icd10_code}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-3 text-[11px] text-derma-muted mt-1">
+                      <div className="flex items-center space-x-3 text-xs text-derma-muted mt-1">
                         <span className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3 text-slate-500" />
                           <span>{scan.created_at ? new Date(scan.created_at).toLocaleDateString() : 'Recent'}</span>
@@ -149,7 +149,7 @@ export default function ScanHistoryDrawer({
 
                     <div className="text-right flex-shrink-0">
                       <span
-                        className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded-lg uppercase tracking-wider ${
+                        className={`inline-block px-2.5 py-1 text-[11px] font-bold rounded-lg ${
                           isMalignant
                             ? 'bg-rose-950/60 text-rose-300 border border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
                             : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
@@ -157,7 +157,7 @@ export default function ScanHistoryDrawer({
                       >
                         {scan.risk_stage || 'Stage 1'}
                       </span>
-                      <div className="text-[11px] font-mono text-derma-accent font-semibold mt-1">
+                      <div className="text-xs font-mono text-derma-accent font-semibold mt-1">
                         Score: {scan.spectral_score?.toFixed(1) || '0.0'}/10
                       </div>
                     </div>
@@ -167,12 +167,12 @@ export default function ScanHistoryDrawer({
                   <div className="pt-2 border-t border-derma-border/50 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center space-x-2">
                       {scan.queued_for_retrain === 1 ? (
-                        <span className="flex items-center space-x-1 text-derma-teal text-[11px] font-semibold bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-500/30">
+                        <span className="flex items-center space-x-1 text-derma-teal text-xs font-semibold bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-500/30">
                           <CheckCircle2 className="w-3 h-3 text-derma-teal" />
                           <span>Biopsy: {scan.confirmed_biopsy_label?.toUpperCase()} (Queued v5)</span>
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-400">Biopsy Ground Truth: Pending</span>
+                        <span className="text-xs text-slate-400">Biopsy Ground Truth: Pending</span>
                       )}
                     </div>
 
@@ -183,7 +183,7 @@ export default function ScanHistoryDrawer({
                             onOpenFeedback(scan);
                             onClose();
                           }}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-derma-accent hover:text-white bg-derma-surface hover:bg-derma-accent/20 rounded-lg border border-derma-border transition-all"
+                          className="px-2.5 py-1 text-xs font-semibold text-derma-accent hover:text-slate-50 bg-derma-surface hover:bg-derma-accent/20 rounded-lg border border-derma-border transition-all"
                         >
                           Attach Biopsy
                         </button>

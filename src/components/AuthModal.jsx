@@ -70,23 +70,23 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl bg-derma-card border border-derma-border shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6">
+      <div className="relative w-full max-w-md rounded-2xl bg-derma-card border border-derma-border shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-derma-surface transition-all"
+          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-50 hover:bg-derma-surface transition-all"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-derma-blue to-derma-accent p-0.5 shadow-glow-cyan">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-derma-accent p-0.5 shadow-glow-cyan">
             <div className="w-full h-full bg-derma-card rounded-[14px] flex items-center justify-center">
               <Stethoscope className="w-6 h-6 text-derma-accent" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-white tracking-tight">
+          <h2 className="text-xl font-bold text-slate-50 tracking-tight">
             SkinScan Clinical Workspace
           </h2>
           <p className="text-xs text-derma-muted">
@@ -106,8 +106,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
               activeTab === 'login'
-                ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-50'
             }`}
           >
             Sign In
@@ -120,8 +120,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
               activeTab === 'register'
-                ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-50'
             }`}
           >
             Register Clinician
@@ -156,7 +156,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   onChange={handleChange}
                   required
                   placeholder="Dr. Sarah Lin, MD"
-                  className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
                 />
               </div>
             </div>
@@ -173,7 +173,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 onChange={handleChange}
                 required
                 placeholder="clinician@hospital.org"
-                className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
               />
             </div>
           </div>
@@ -190,7 +190,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 required
                 minLength={6}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
               />
             </div>
           </div>
@@ -202,7 +202,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white focus:outline-none focus:border-derma-accent transition-colors"
+                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 focus:outline-none focus:border-derma-accent transition-colors"
               >
                 <option value="clinician">Clinician / Dermatologist</option>
                 <option value="patient">Patient / Consumer</option>
@@ -214,7 +214,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 text-xs font-bold text-slate-950 bg-gradient-to-r from-derma-accent to-derma-blue hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 disabled:opacity-50"
+            className="w-full py-3 text-xs font-bold text-slate-950 bg-derma-accent hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 disabled:opacity-50"
           >
             {isLoading
               ? 'Authenticating...'

@@ -109,17 +109,17 @@ export default function HitlFeedbackPanel({
   };
 
   return (
-    <div className="rounded-3xl bg-derma-card border border-derma-border p-6 sm:p-8 space-y-6 shadow-xl">
+    <div className="rounded-2xl bg-derma-card border border-derma-border p-6 sm:p-8 space-y-6 shadow-xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-derma-border">
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 rounded-2xl bg-derma-surface text-derma-accent border border-derma-border shadow-sm">
+          <div className="p-2.5 rounded-xl bg-derma-surface text-derma-accent border border-derma-border shadow-sm">
             <Layers className="w-6 h-6 text-derma-accent" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white tracking-tight flex items-center space-x-2">
+            <h3 className="text-base font-bold text-slate-50 tracking-tight flex items-center space-x-2">
               <span>Clinician Biopsy Ground Truth</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-derma-surface text-derma-teal border border-derma-border">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-derma-surface text-derma-teal border border-derma-border">
                 HITL MLOps
               </span>
             </h3>
@@ -132,7 +132,7 @@ export default function HitlFeedbackPanel({
         {/* Offline Queue Badge & Export Button */}
         <div className="flex items-center space-x-2 self-start sm:self-auto">
           <div className="text-right">
-            <div className="text-[10px] font-mono text-slate-400">Offline v5 Queue</div>
+            <div className="text-[11px] font-mono text-slate-400">Offline v5 Queue</div>
             <div className="text-xs font-bold text-derma-teal font-mono">
               {queueInfo.queued_count} cases queued
             </div>
@@ -151,7 +151,7 @@ export default function HitlFeedbackPanel({
 
       {/* Guest Mode Notice */}
       {!currentUser && (
-        <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-2 text-amber-300">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>
@@ -160,7 +160,7 @@ export default function HitlFeedbackPanel({
           </div>
           <button
             onClick={onOpenAuthModal}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-derma-accent to-derma-blue text-slate-950 font-bold rounded-xl shadow-glow-cyan transition-all"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-derma-accent text-slate-950 font-bold rounded-xl shadow-glow-cyan transition-all"
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>Sign In Clinician</span>
@@ -179,7 +179,7 @@ export default function HitlFeedbackPanel({
               <select
                 value={selectedLabel}
                 onChange={(e) => setSelectedLabel(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white focus:outline-none focus:border-derma-accent transition-colors"
+                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 focus:outline-none focus:border-derma-accent transition-colors"
               >
                 {BIOPSY_OPTIONS.map((opt) => (
                   <option key={opt.code} value={opt.code}>
@@ -198,7 +198,7 @@ export default function HitlFeedbackPanel({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g., Clark Level II, Breslow depth 0.4mm, clear margins"
-                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
+                className="w-full px-3.5 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
               />
             </div>
           </div>
@@ -220,14 +220,14 @@ export default function HitlFeedbackPanel({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center space-x-2 px-5 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-derma-teal to-derma-accent hover:brightness-110 rounded-xl shadow-glow-cyan transition-all disabled:opacity-50"
+            className="flex items-center space-x-2 px-5 py-2.5 text-xs font-bold text-slate-950 bg-derma-teal hover:brightness-110 rounded-xl shadow-glow-cyan transition-all disabled:opacity-50"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>{isSubmitting ? 'Recording Feedback...' : 'Verify & Queue for Offline Retraining'}</span>
           </button>
         </form>
       ) : (
-        <div className="p-4 rounded-2xl bg-derma-surface/60 border border-derma-border text-xs text-slate-400 flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-derma-surface/60 border border-derma-border text-xs text-slate-400 flex items-center justify-between">
           <span>
             Run an authenticated scan to attach biopsy ground truth. Scans evaluated in Guest Mode are stateless.
           </span>

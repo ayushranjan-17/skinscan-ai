@@ -79,43 +79,36 @@ const PIPELINE_STAGES = [
     label: 'DullRazor Hair Removal',
     detail: 'Removing hair artifacts using morphological BlackHat transform & Telea inpainting',
     duration: 800,
-    icon: '🪒',
   },
   {
     label: 'Color Constancy Normalization',
     detail: 'Adjusting lighting with Gray-World algorithm to remove camera flash bias',
     duration: 600,
-    icon: '🎨',
   },
   {
     label: 'DenseNet121 Feature Extraction',
     detail: 'Extracting 1024-dimensional visual features using pre-trained deep neural network',
     duration: 1000,
-    icon: '🧠',
   },
   {
     label: 'Patient Metadata Fusion',
     detail: 'Combining image features with age, sex & anatomical site through MLP branch',
     duration: 500,
-    icon: '🔗',
   },
   {
     label: 'Focal Loss Classification',
     detail: 'Running 7-class prediction with class-imbalance-aware Focal Loss (γ=2.0)',
     duration: 700,
-    icon: '🎯',
   },
   {
     label: 'Grad-CAM Explainability Map',
     detail: 'Generating neural attention heatmap showing which regions the AI focused on',
     duration: 600,
-    icon: '🔥',
   },
   {
     label: 'Risk Stratification & Doctor Routing',
     detail: 'Computing 1-10 spectral risk score and matching to the right specialist',
     duration: 500,
-    icon: '⚕️',
   },
 ];
 
@@ -132,7 +125,7 @@ function Tooltip({ text, children }) {
     >
       {children}
       {show && (
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-xl bg-slate-800 border border-derma-border text-[11px] text-slate-200 whitespace-nowrap shadow-xl z-50 animate-in fade-in slide-in-from-bottom-1 duration-150">
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-xl bg-slate-800 border border-derma-border text-xs text-slate-200 whitespace-nowrap shadow-xl z-50 animate-in fade-in slide-in-from-bottom-1 duration-150">
           {text}
           <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-800" />
         </span>
@@ -152,7 +145,7 @@ export function StepProgressBar({ currentStep, completedSteps, onStepClick }) {
         {/* Connecting line */}
         <div className="absolute top-5 left-8 right-8 h-0.5 bg-derma-border/60" />
         <div
-          className="absolute top-5 left-8 h-0.5 bg-gradient-to-r from-derma-accent to-derma-teal transition-all duration-700 ease-out"
+          className="absolute top-5 left-8 h-0.5 bg-derma-accent transition-all duration-700 ease-out"
           style={{
             width: `${Math.max(0, ((Math.min(currentStep, STEPS.length) - 1) / (STEPS.length - 1)) * 100)}%`,
             maxWidth: 'calc(100% - 64px)',
@@ -179,15 +172,15 @@ export function StepProgressBar({ currentStep, completedSteps, onStepClick }) {
                   isCompleted
                     ? 'bg-derma-teal text-slate-900 shadow-lg shadow-derma-teal/30 scale-100'
                     : isActive
-                      ? `bg-gradient-to-br ${step.color} text-white shadow-lg shadow-derma-accent/30 scale-110 ring-4 ring-derma-accent/20`
+                      ? `bg-gradient-to-br ${step.color} text-slate-50 shadow-lg shadow-derma-accent/30 scale-110 ring-4 ring-derma-accent/20`
                       : 'bg-derma-card border-2 border-derma-border text-slate-400'
                 }`}
               >
                 {isCompleted ? <Check className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
               </div>
               <span
-                className={`text-[11px] font-semibold transition-colors ${
-                  isActive ? 'text-white' : isCompleted ? 'text-derma-teal' : 'text-slate-500'
+                className={`text-xs font-semibold transition-colors ${
+                  isActive ? 'text-slate-50' : isCompleted ? 'text-derma-teal' : 'text-slate-500'
                 }`}
               >
                 {step.shortTitle}
@@ -221,8 +214,8 @@ export function StepProgressBar({ currentStep, completedSteps, onStepClick }) {
       {currentStep >= 1 && currentStep <= STEPS.length && (
         <div className="mt-4 flex items-center justify-center space-x-2 text-center">
           <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-derma-surface/60 border border-derma-border/60">
-            <span className="flex h-2 w-2 rounded-full bg-derma-accent animate-pulse" />
-            <span className="text-xs font-semibold text-white">
+            <span className="flex h-2 w-2 rounded-full bg-derma-accent" />
+            <span className="text-xs font-semibold text-slate-50">
               Step {currentStep} of {STEPS.length}:
             </span>
             <span className="text-xs text-slate-300">{STEPS[currentStep - 1].description}</span>
@@ -275,12 +268,12 @@ export function AiProcessingAnimation({ onComplete }) {
       {/* Brain Animation Header */}
       <div className="text-center space-y-3">
         <div className="relative inline-flex items-center justify-center w-20 h-20 mx-auto">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-derma-accent/20 to-derma-blue/20 animate-ping" />
-          <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-derma-accent to-derma-blue flex items-center justify-center shadow-glow-cyan">
-            <Brain className="w-8 h-8 text-white animate-pulse" />
+          <div className="absolute inset-0 rounded-full bg-derma-surface animate-ping" />
+          <div className="relative w-16 h-16 rounded-full bg-derma-accent flex items-center justify-center shadow-glow-cyan">
+            <Brain className="w-8 h-8 text-slate-50 animate-pulse" />
           </div>
         </div>
-        <h3 className="text-lg font-bold text-white">AI is Analyzing Your Scan...</h3>
+        <h3 className="text-lg font-bold text-slate-50">AI is Analyzing Your Scan...</h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
           Processing through our multi-modal deep learning pipeline. Each stage enhances the
           diagnostic accuracy.
@@ -289,13 +282,13 @@ export function AiProcessingAnimation({ onComplete }) {
 
       {/* Overall Progress Bar */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
           <span>Pipeline Progress</span>
           <span>{Math.round(overallProgress)}%</span>
         </div>
         <div className="w-full h-2 rounded-full bg-derma-card border border-derma-border overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-teal transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-derma-accent transition-all duration-300 ease-out"
             style={{ width: `${overallProgress}%` }}
           />
         </div>
@@ -329,18 +322,18 @@ export function AiProcessingAnimation({ onComplete }) {
                       : 'bg-derma-card text-slate-500'
                 }`}
               >
-                {isDone ? <Check className="w-4 h-4" /> : <span>{stage.icon}</span>}
+                {isDone ? <Check className="w-4 h-4" /> : <span>{idx + 1}</span>}
               </div>
 
               {/* Label and Detail */}
               <div className="flex-1 min-w-0">
                 <p
-                  className={`text-xs font-bold ${isDone ? 'text-derma-teal' : isActive ? 'text-white' : 'text-slate-500'}`}
+                  className={`text-xs font-bold ${isDone ? 'text-derma-teal' : isActive ? 'text-slate-50' : 'text-slate-500'}`}
                 >
                   {stage.label}
                 </p>
                 {(isActive || isDone) && (
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">{stage.detail}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{stage.detail}</p>
                 )}
               </div>
 
@@ -355,7 +348,7 @@ export function AiProcessingAnimation({ onComplete }) {
               )}
 
               {isDone && (
-                <span className="text-[10px] text-derma-teal font-mono flex-shrink-0">Done</span>
+                <span className="text-[11px] text-derma-teal font-mono flex-shrink-0">Done</span>
               )}
             </div>
           );
@@ -380,7 +373,7 @@ export function AiProcessingAnimation({ onComplete }) {
 // ─────────────────────────────────────────────────────────
 export function HowItWorksGuide({ onDismiss }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-derma-card via-derma-surface to-derma-card border border-derma-border p-6 sm:p-8">
+    <div className="relative overflow-hidden rounded-2xl bg-derma-card border border-derma-border p-6 sm:p-8">
       {/* Background decoration */}
       <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-derma-accent/5 blur-3xl" />
       <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-derma-blue/5 blur-3xl" />
@@ -389,17 +382,17 @@ export function HowItWorksGuide({ onDismiss }) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-derma-accent to-derma-blue flex items-center justify-center">
-              <Info className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-derma-accent flex items-center justify-center">
+              <Info className="w-5 h-5 text-slate-50" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">How SkinScan AI Works</h3>
-              <p className="text-[11px] text-slate-400">Quick 60-second guide for new users</p>
+              <h3 className="text-base font-bold text-slate-50">How SkinScan AI Works</h3>
+              <p className="text-xs text-slate-400">Quick 60-second guide for new users</p>
             </div>
           </div>
           <button
             onClick={onDismiss}
-            className="text-xs font-semibold text-derma-accent hover:text-white border border-derma-border hover:border-derma-accent px-3 py-1.5 rounded-lg transition-all"
+            className="text-xs font-semibold text-derma-accent hover:text-slate-50 border border-derma-border hover:border-derma-accent px-3 py-1.5 rounded-lg transition-all"
           >
             Got it, start scanning →
           </button>
@@ -455,7 +448,7 @@ export function HowItWorksGuide({ onDismiss }) {
             return (
               <div
                 key={item.step}
-                className="group p-4 rounded-2xl bg-derma-bg/60 border border-derma-border/60 hover:border-derma-accent/40 transition-all hover:shadow-lg hover:shadow-derma-accent/5"
+                className="group p-4 rounded-xl bg-derma-bg/60 border border-derma-border/60 hover:border-derma-accent/40 transition-all hover:shadow-lg hover:shadow-derma-accent/5"
               >
                 <div className="flex items-center space-x-3 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-derma-surface flex items-center justify-center text-derma-accent font-bold text-sm border border-derma-border">
@@ -463,11 +456,11 @@ export function HowItWorksGuide({ onDismiss }) {
                   </div>
                   <div className="flex items-center space-x-1.5">
                     <Icon className="w-4 h-4 text-derma-accent" />
-                    <span className="text-sm font-bold text-white">{item.title}</span>
+                    <span className="text-sm font-bold text-slate-50">{item.title}</span>
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">{item.desc}</p>
-                <div className="mt-2 flex items-center space-x-1 text-[10px] text-derma-accent/80">
+                <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
+                <div className="mt-2 flex items-center space-x-1 text-[11px] text-derma-accent/80">
                   <Zap className="w-3 h-3" />
                   <span className="font-medium">{item.tip}</span>
                 </div>
@@ -493,7 +486,7 @@ export function SectionExplainer({ icon: Icon, title, subtitle, learnMore }) {
       </div>
       <div className="flex-1">
         <div className="flex items-center space-x-2">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">{title}</h3>
+          <h3 className="text-sm font-bold text-slate-50">{title}</h3>
           {learnMore && (
             <Tooltip text="Click to learn more">
               <button
@@ -505,9 +498,9 @@ export function SectionExplainer({ icon: Icon, title, subtitle, learnMore }) {
             </Tooltip>
           )}
         </div>
-        <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>
+        <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
         {showDetail && learnMore && (
-          <div className="mt-2 p-3 rounded-xl bg-derma-surface/50 border border-derma-border/60 text-[11px] text-slate-300 leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="mt-2 p-3 rounded-xl bg-derma-surface/50 border border-derma-border/60 text-xs text-slate-300 leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
             {learnMore}
           </div>
         )}
@@ -537,10 +530,10 @@ export function StepNavigation({ currentStep, onNext, onBack, nextLabel, nextDis
       <button
         onClick={onNext}
         disabled={nextDisabled}
-        className={`flex items-center space-x-2 px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all transform active:scale-95 ${
+        className={`flex items-center space-x-2 px-6 py-2.5 text-xs font-bold rounded-xl transition-all transform active:scale-95 ${
           nextDisabled
             ? 'bg-derma-border text-slate-500 cursor-not-allowed'
-            : 'bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 shadow-glow-cyan hover:opacity-95'
+            : 'bg-derma-accent text-slate-950 shadow-glow-cyan hover:opacity-95'
         }`}
       >
         <span>{nextLabel || 'Continue'}</span>

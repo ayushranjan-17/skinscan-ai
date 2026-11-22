@@ -28,7 +28,7 @@ export default function AbcdAnalysisCard({ result }) {
   const isBorderlineTds = Number(tds) >= 4.75 && Number(tds) <= 5.45;
 
   return (
-    <div className="glass-panel p-6 rounded-3xl border border-derma-border shadow-2xl space-y-6">
+    <div className="glass-panel p-6 rounded-2xl border border-derma-border shadow-2xl space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-derma-border/70">
         <div>
@@ -36,7 +36,7 @@ export default function AbcdAnalysisCard({ result }) {
             <span className="p-2 rounded-xl bg-derma-teal/20 text-derma-teal border border-derma-teal/30">
               <Compass className="w-5 h-5" />
             </span>
-            <h2 className="text-xl font-bold text-white font-sans">
+            <h2 className="text-xl font-bold text-slate-50 font-sans">
               Dermatological ABCD Rule Feature Analysis
             </h2>
           </div>
@@ -47,7 +47,7 @@ export default function AbcdAnalysisCard({ result }) {
 
         {/* TDS Badge */}
         <div
-          className={`px-4 py-2 rounded-2xl border text-center ${
+          className={`px-4 py-2 rounded-xl border text-center ${
             isHighRiskTds
               ? 'bg-rose-500/15 border-rose-500/40 text-derma-rose'
               : isBorderlineTds
@@ -55,11 +55,11 @@ export default function AbcdAnalysisCard({ result }) {
                 : 'bg-emerald-500/15 border-emerald-500/40 text-derma-teal'
           }`}
         >
-          <span className="text-[10px] uppercase font-bold tracking-wider block">
+          <span className="text-[11px] font-bold block">
             Total TDS Score
           </span>
-          <span className="text-lg font-black font-mono">{tds}</span>
-          <span className="text-[10px] block font-semibold">
+          <span className="text-lg font-bold font-mono">{tds}</span>
+          <span className="text-[11px] block font-semibold">
             {isHighRiskTds
               ? 'Malignant Threshold Exceeded (>5.45)'
               : isBorderlineTds
@@ -72,24 +72,24 @@ export default function AbcdAnalysisCard({ result }) {
       {/* ABCD 4 Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* A - Asymmetry */}
-        <div className="p-4 rounded-2xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
+        <div className="p-4 rounded-xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <span className="w-6 h-6 rounded-lg bg-derma-blue/30 text-derma-accent flex items-center justify-center font-black text-xs shrink-0 border border-derma-blue/40">
+              <span className="w-6 h-6 rounded-lg bg-derma-blue/30 text-derma-accent flex items-center justify-center font-bold text-xs shrink-0 border border-derma-blue/40">
                 A
               </span>
-              <span className="font-extrabold text-white text-xs uppercase tracking-wider">
+              <span className="font-semibold text-slate-50 text-xs">
                 Asymmetry
               </span>
             </div>
             <div className="flex items-baseline justify-between pt-0.5">
               <div className="flex items-baseline space-x-1">
-                <span className="text-xl font-black font-mono text-derma-accent">
+                <span className="text-xl font-bold font-mono text-derma-accent">
                   {asymVal.toFixed(1)}
                 </span>
                 <span className="text-xs text-slate-500 font-mono font-medium">/ 2.0</span>
               </div>
-              <span className="text-[10px] uppercase font-bold text-slate-400">
+              <span className="text-[11px] font-bold text-slate-400">
                 {asymVal >= 1.5 ? 'Marked' : asymVal >= 0.8 ? 'Moderate' : 'Minimal'}
               </span>
             </div>
@@ -102,31 +102,31 @@ export default function AbcdAnalysisCard({ result }) {
                 style={{ width: `${Math.min(100, Math.max(5, (asymVal / 2) * 100))}%` }}
               />
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">
+            <p className="text-xs text-slate-400 leading-snug">
               Evaluated across 2 orthogonal axes (0 = symmetric, 2 = bilateral asymmetry).
             </p>
           </div>
         </div>
 
         {/* B - Border */}
-        <div className="p-4 rounded-2xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
+        <div className="p-4 rounded-xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <span className="w-6 h-6 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center font-black text-xs shrink-0 border border-purple-500/40">
+              <span className="w-6 h-6 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center font-bold text-xs shrink-0 border border-purple-500/40">
                 B
               </span>
-              <span className="font-extrabold text-white text-xs uppercase tracking-wider">
+              <span className="font-semibold text-slate-50 text-xs">
                 Border Cutoff
               </span>
             </div>
             <div className="flex items-baseline justify-between pt-0.5">
               <div className="flex items-baseline space-x-1">
-                <span className="text-xl font-black font-mono text-purple-300">
+                <span className="text-xl font-bold font-mono text-purple-300">
                   {borderVal.toFixed(1)}
                 </span>
                 <span className="text-xs text-slate-500 font-mono font-medium">/ 8.0</span>
               </div>
-              <span className="text-[10px] uppercase font-bold text-slate-400">
+              <span className="text-[11px] font-bold text-slate-400">
                 {borderVal >= 5.0 ? 'Irregular' : borderVal >= 2.5 ? 'Moderate' : 'Sharp'}
               </span>
             </div>
@@ -139,29 +139,29 @@ export default function AbcdAnalysisCard({ result }) {
                 style={{ width: `${Math.min(100, Math.max(5, (borderVal / 8) * 100))}%` }}
               />
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">
+            <p className="text-xs text-slate-400 leading-snug">
               Abrupt margin cutoff and jagged indentations across 8 peripheral sectors.
             </p>
           </div>
         </div>
 
         {/* C - Color */}
-        <div className="p-4 rounded-2xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
+        <div className="p-4 rounded-xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <span className="w-6 h-6 rounded-lg bg-amber-500/30 text-derma-amber flex items-center justify-center font-black text-xs shrink-0 border border-amber-500/40">
+              <span className="w-6 h-6 rounded-lg bg-amber-500/30 text-derma-amber flex items-center justify-center font-bold text-xs shrink-0 border border-amber-500/40">
                 C
               </span>
-              <span className="font-extrabold text-white text-xs uppercase tracking-wider">
+              <span className="font-semibold text-slate-50 text-xs">
                 Color Count
               </span>
             </div>
             <div className="flex items-baseline justify-between pt-0.5">
               <div className="flex items-baseline space-x-1">
-                <span className="text-xl font-black font-mono text-derma-amber">{colorVal}</span>
+                <span className="text-xl font-bold font-mono text-derma-amber">{colorVal}</span>
                 <span className="text-xs text-slate-500 font-mono font-medium">/ 6 shades</span>
               </div>
-              <span className="text-[10px] uppercase font-bold text-slate-400">
+              <span className="text-[11px] font-bold text-slate-400">
                 {colorVal >= 4 ? 'Variegated' : colorVal >= 2 ? 'Dual-Tone' : 'Uniform'}
               </span>
             </div>
@@ -174,32 +174,32 @@ export default function AbcdAnalysisCard({ result }) {
                 style={{ width: `${Math.min(100, Math.max(5, (colorVal / 6) * 100))}%` }}
               />
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">
+            <p className="text-xs text-slate-400 leading-snug">
               Number of distinct pigment shades detected across the lesion core.
             </p>
           </div>
         </div>
 
         {/* D - Diameter */}
-        <div className="p-4 rounded-2xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
+        <div className="p-4 rounded-xl bg-derma-bg/90 border border-derma-border hover:border-derma-accent/60 transition-all flex flex-col justify-between space-y-3">
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <span className="w-6 h-6 rounded-lg bg-emerald-500/30 text-derma-teal flex items-center justify-center font-black text-xs shrink-0 border border-emerald-500/40">
+              <span className="w-6 h-6 rounded-lg bg-emerald-500/30 text-derma-teal flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-500/40">
                 D
               </span>
-              <span className="font-extrabold text-white text-xs uppercase tracking-wider">
+              <span className="font-semibold text-slate-50 text-xs">
                 Diameter
               </span>
             </div>
             <div className="flex items-baseline justify-between pt-0.5">
               <div className="flex items-baseline space-x-1">
-                <span className="text-xl font-black font-mono text-derma-teal">
+                <span className="text-xl font-bold font-mono text-derma-teal">
                   {diamVal.toFixed(1)}
                 </span>
                 <span className="text-xs text-slate-500 font-mono font-medium">mm</span>
               </div>
               <span
-                className={`text-[10px] uppercase font-bold ${diamVal > 6 ? 'text-derma-rose font-black' : 'text-derma-teal'}`}
+                className={`text-[11px] font-bold ${diamVal > 6 ? 'text-derma-rose font-bold' : 'text-derma-teal'}`}
               >
                 {diamVal > 6 ? '>6mm Warning' : '<6mm Favorable'}
               </span>
@@ -213,7 +213,7 @@ export default function AbcdAnalysisCard({ result }) {
                 style={{ width: `${Math.min(100, Math.max(5, (diamVal / 12) * 100))}%` }}
               />
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">
+            <p className="text-xs text-slate-400 leading-snug">
               Maximum horizontal axis span (
               {diamVal > 6 ? 'Exceeds 6mm threshold' : 'Favorable span'}).
             </p>
@@ -222,7 +222,7 @@ export default function AbcdAnalysisCard({ result }) {
       </div>
 
       {/* Detected Colors Tags */}
-      <div className="p-4 rounded-2xl bg-derma-card/80 border border-derma-border text-xs flex flex-wrap items-center gap-2">
+      <div className="p-4 rounded-xl bg-derma-card/80 border border-derma-border text-xs flex flex-wrap items-center gap-2">
         <span className="font-bold text-slate-300 flex items-center space-x-1.5 mr-2">
           <Palette className="w-4 h-4 text-derma-accent" />
           <span>Pigment Spectrum Identified:</span>
@@ -231,7 +231,7 @@ export default function AbcdAnalysisCard({ result }) {
           colorsDetected.map((col, idx) => (
             <span
               key={idx}
-              className="px-2.5 py-1 rounded-lg bg-derma-surface text-slate-200 border border-derma-border font-medium text-[11px]"
+              className="px-2.5 py-1 rounded-lg bg-derma-surface text-slate-200 border border-derma-border font-medium text-xs"
             >
               {col}
             </span>

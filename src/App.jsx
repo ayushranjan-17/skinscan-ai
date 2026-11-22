@@ -289,7 +289,7 @@ export default function App() {
   }, [showGuide, currentStep]);
 
   return (
-    <div className="min-h-screen bg-derma-bg text-slate-100 flex flex-col font-sans selection:bg-derma-accent/30 selection:text-white">
+    <div className="min-h-screen bg-derma-bg text-slate-100 flex flex-col font-sans selection:bg-derma-accent/30 selection:text-slate-50">
       {/* Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -339,14 +339,14 @@ export default function App() {
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <button
                       onClick={handleStartGuided}
-                      className="flex items-center space-x-2 px-6 py-3 text-sm font-bold text-slate-900 bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue rounded-2xl shadow-glow-cyan hover:opacity-95 active:scale-95 transition-all"
+                      className="flex items-center space-x-2 px-6 py-3 text-sm font-bold text-slate-900 bg-derma-accent rounded-xl shadow-glow-cyan hover:opacity-95 active:scale-95 transition-all"
                     >
                       <Sparkles className="w-4 h-4" />
                       <span>Start Step-by-Step Scan</span>
                     </button>
                     <button
                       onClick={handleSkipToResults}
-                      className="flex items-center space-x-2 px-5 py-3 text-sm font-semibold text-slate-300 bg-derma-card border border-derma-border rounded-2xl hover:border-derma-accent transition-all"
+                      className="flex items-center space-x-2 px-5 py-3 text-sm font-semibold text-slate-300 bg-derma-card border border-derma-border rounded-xl hover:border-derma-accent transition-all"
                     >
                       <ArrowRight className="w-4 h-4" />
                       <span>Skip to Demo Results</span>
@@ -399,7 +399,7 @@ export default function App() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6">
                     <p className="text-xs text-slate-400">
                       {!(customImageSrc || selectedBenchmark || uploadedFile)
-                        ? "⚠️ Upload or select a lesion photo above to activate analysis"
+                        ? "Upload or select a lesion photo above to activate analysis"
                         : "✓ Image ready for analysis"}
                     </p>
                     <div className="flex items-center space-x-3 w-full sm:w-auto">
@@ -420,11 +420,11 @@ export default function App() {
                         className={`flex-1 sm:flex-none px-6 py-3 text-xs font-bold rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2 ${
                           !(customImageSrc || selectedBenchmark || uploadedFile) || isAnalyzing
                             ? "bg-derma-border text-slate-500 cursor-not-allowed opacity-50"
-                            : "bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 hover:opacity-95 active:scale-[0.98]"
+                            : "bg-derma-accent text-slate-950 hover:opacity-95 active:scale-[0.98]"
                         }`}
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>⚡ Analyze Directly</span>
+                        <span>Analyze Directly</span>
                       </button>
                       <button
                         onClick={() => {
@@ -435,7 +435,7 @@ export default function App() {
                         className={`flex-1 sm:flex-none px-4 py-3 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center space-x-1.5 ${
                           !(customImageSrc || selectedBenchmark || uploadedFile)
                             ? "border-derma-border text-slate-600 cursor-not-allowed opacity-40"
-                            : "bg-derma-card border-derma-border text-slate-300 hover:text-white hover:border-derma-accent"
+                            : "bg-derma-card border-derma-border text-slate-300 hover:text-slate-50 hover:border-derma-accent"
                         }`}
                       >
                         <span>Step 2: Patient Details</span>
@@ -487,13 +487,13 @@ export default function App() {
                           });
                           handleAnalyze(customImageSrc, uploadedFile);
                         }}
-                        className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-card hover:text-white hover:border-derma-accent border border-derma-border rounded-xl transition-all"
+                        className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-card hover:text-slate-50 hover:border-derma-accent border border-derma-border rounded-xl transition-all"
                       >
-                        ⚡ Skip & Run Image-Only
+                        Skip & Run Image-Only
                       </button>
                       <button
                         onClick={() => handleAnalyze(customImageSrc, uploadedFile)}
-                        className="flex-1 sm:flex-none px-6 py-2.5 text-xs font-bold bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2"
+                        className="flex-1 sm:flex-none px-6 py-2.5 text-xs font-bold bg-derma-accent text-slate-950 rounded-xl transition-all shadow-glow-cyan flex items-center justify-center space-x-2"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>Run Multi-Modal Analysis</span>
@@ -509,12 +509,12 @@ export default function App() {
                   {isProcessing ? (
                     <AiProcessingAnimation onComplete={handleProcessingComplete} />
                   ) : (
-                    <div className="max-w-xl mx-auto p-8 rounded-3xl bg-derma-card border border-derma-border text-center space-y-5 shadow-2xl">
-                      <div className="w-14 h-14 mx-auto rounded-2xl bg-derma-teal/20 border border-derma-teal/40 flex items-center justify-center text-derma-teal">
+                    <div className="max-w-xl mx-auto p-8 rounded-2xl bg-derma-card border border-derma-border text-center space-y-5 shadow-2xl">
+                      <div className="w-14 h-14 mx-auto rounded-xl bg-derma-teal/20 border border-derma-teal/40 flex items-center justify-center text-derma-teal">
                         <Brain className="w-7 h-7" />
                       </div>
                       <div>
-                        <h3 className="text-base font-bold text-white">
+                        <h3 className="text-base font-bold text-slate-50">
                           Multi-Stage AI Pipeline Executed
                         </h3>
                         <p className="text-xs text-slate-400 mt-1.5">
@@ -524,7 +524,7 @@ export default function App() {
                       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                         <button
                           onClick={() => goToStep(2)}
-                          className="px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-surface border border-derma-border rounded-xl hover:text-white transition-all"
+                          className="px-4 py-2.5 text-xs font-semibold text-slate-300 bg-derma-surface border border-derma-border rounded-xl hover:text-slate-50 transition-all"
                         >
                           ← Edit Patient Info
                         </button>
@@ -537,7 +537,7 @@ export default function App() {
                         {analysisResult && (
                           <button
                             onClick={() => goToStep(4)}
-                            className="px-5 py-2.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue rounded-xl shadow-glow-cyan hover:opacity-95 transition-all"
+                            className="px-5 py-2.5 text-xs font-bold text-slate-950 bg-derma-accent rounded-xl shadow-glow-cyan hover:opacity-95 transition-all"
                           >
                             View Risk Score →
                           </button>
@@ -562,7 +562,7 @@ export default function App() {
 
                   {/* Real Inference vs Demo Mode Indicator Banner */}
                   <div
-                    className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs font-semibold ${
+                    className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold ${
                       analysisResult.isRealInference
                         ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
                         : backendError
@@ -574,7 +574,7 @@ export default function App() {
                       <span
                         className={`w-2.5 h-2.5 rounded-full ${
                           analysisResult.isRealInference
-                            ? 'bg-emerald-400 animate-pulse'
+                            ? 'bg-emerald-400'
                             : backendError
                               ? 'bg-amber-400'
                               : 'bg-cyan-400'
@@ -588,8 +588,8 @@ export default function App() {
                             : 'Demo Mode: Evaluated via validated HAM10000 benchmark case profile.'}
                       </span>
                     </div>
-                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-900/80 border border-derma-border">
-                      {analysisResult.isRealInference ? 'PRODUCTION API' : 'CLIENT DEMO'}
+                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-900/80 border border-derma-border">
+                      {analysisResult.isRealInference ? 'Live model' : 'Demo mode'}
                     </span>
                   </div>
 
@@ -635,7 +635,7 @@ export default function App() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                        <h3 className="text-sm font-bold text-slate-50 flex items-center space-x-2">
                           <Brain className="w-4 h-4 text-derma-accent" />
                           <span>Grad-CAM: Where the AI Looked</span>
                         </h3>
@@ -652,7 +652,7 @@ export default function App() {
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                        <h3 className="text-sm font-bold text-slate-50 flex items-center space-x-2">
                           <ShieldCheck className="w-4 h-4 text-derma-accent" />
                           <span>ABCD Clinical Scoring</span>
                         </h3>
@@ -693,13 +693,13 @@ export default function App() {
                   />
 
                   {/* Report Preview Card */}
-                  <div className="max-w-xl mx-auto p-8 rounded-3xl bg-gradient-to-br from-derma-card via-derma-surface to-derma-card border border-derma-border text-center space-y-6">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-derma-accent to-derma-blue flex items-center justify-center shadow-glow-cyan">
-                      <FileText className="w-8 h-8 text-white" />
+                  <div className="max-w-xl mx-auto p-8 rounded-2xl bg-derma-card border border-derma-border text-center space-y-6">
+                    <div className="w-16 h-16 mx-auto rounded-xl bg-derma-accent flex items-center justify-center shadow-glow-cyan">
+                      <FileText className="w-8 h-8 text-slate-50" />
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-bold text-white">Analysis Complete!</h3>
+                      <h3 className="text-lg font-bold text-slate-50">Analysis Complete!</h3>
                       <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto">
                         All 7 pipeline stages have been processed. Your clinical triage report
                         includes:
@@ -730,7 +730,7 @@ export default function App() {
                           completeStep(6);
                           setIsReportModalOpen(true);
                         }}
-                        className="flex items-center space-x-2 px-6 py-3 text-sm font-bold text-slate-900 bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue rounded-2xl shadow-glow-cyan hover:opacity-95 active:scale-95 transition-all"
+                        className="flex items-center space-x-2 px-6 py-3 text-sm font-bold text-slate-900 bg-derma-accent rounded-xl shadow-glow-cyan hover:opacity-95 active:scale-95 transition-all"
                       >
                         <FileText className="w-4 h-4" />
                         <span>Open Full EHR Report</span>
@@ -744,7 +744,7 @@ export default function App() {
                           setCustomImageSrc(null);
                           setSelectedBenchmark(BENCHMARK_LESIONS[0]);
                         }}
-                        className="flex items-center space-x-2 px-5 py-3 text-sm font-semibold text-slate-300 bg-derma-card border border-derma-border rounded-2xl hover:border-derma-accent transition-all"
+                        className="flex items-center space-x-2 px-5 py-3 text-sm font-semibold text-slate-300 bg-derma-card border border-derma-border rounded-xl hover:border-derma-accent transition-all"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>Scan Another Lesion</span>
@@ -818,7 +818,7 @@ export default function App() {
               <SectionExplainer
                 icon={ShieldCheck}
                 title="Model Performance & Research Metrics"
-                subtitle="Comprehensive validation metrics, confusion matrix, ROC-AUC curves, and alignment with UN Sustainable Development Goals."
+                subtitle="Test-set results for the model, and how the project lines up with the UN Sustainable Development Goals."
                 learnMore="These metrics are computed on the HAM10000 test split (15% holdout). The confusion matrix shows per-class performance, while the ROC curve demonstrates the model's ability to discriminate between all 7 lesion types. Our work aligns with SDG 3 (Good Health), SDG 9 (Innovation), and SDG 10 (Reduced Inequalities in healthcare access)."
               />
               <ResearchMetricsDashboard />
@@ -833,22 +833,22 @@ export default function App() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-white text-sm">SkinScan AI Triage System</span>
-                <span className="px-2 py-0.5 rounded bg-derma-surface text-derma-teal font-mono text-[10px]">
+                <span className="font-bold text-slate-50 text-sm">SkinScan AI Triage System</span>
+                <span className="px-2 py-0.5 rounded bg-derma-surface text-derma-teal font-mono text-[11px]">
                   v2.0 Hybrid DenseNet
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
+              <p className="mt-1 text-xs text-slate-400">
                 Major Project Phase-2 • Bachelor of Engineering in CSE, B.M.S. College of
                 Engineering (Autonomous VTU)
               </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 Students: Akshat Kumar Sinha, Anmol Bhattarai, Ayaan Shrestha, Ayush Ranjan | Guide:
                 Megavalli M
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-[11px]">
+            <div className="flex flex-wrap items-center gap-4 text-xs">
               <button
                 onClick={() => setIsPipelineModalOpen(true)}
                 className="hover:text-derma-accent transition-colors"
@@ -873,7 +873,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-derma-border/40 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500">
+          <div className="mt-6 pt-6 border-t border-derma-border/40 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500">
             <p>© 2026 SkinScan AI • Academic Research & Clinical Decision Support Protocol</p>
             <p className="mt-2 sm:mt-0 flex items-center space-x-1">
               <span>Service to Humanity is Service to God</span>

@@ -47,24 +47,18 @@ export default function Navbar({
               }
             }}
           >
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-derma-blue to-derma-accent p-0.5 shadow-glow-cyan flex-shrink-0 group-hover:shadow-[0_0_22px_rgba(34,211,238,0.55)] transition-all">
-              <div className="w-full h-full bg-derma-card rounded-[10px] flex items-center justify-center">
-                <Activity className="w-5 h-5 text-derma-accent group-hover:scale-110 transition-transform" />
-              </div>
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-derma-teal rounded-full animate-ping" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-derma-teal rounded-full" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-derma-card border border-derma-borderLight flex-shrink-0">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 text-derma-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <circle cx="12" cy="12" r="3.5" />
+              </svg>
             </div>
             <div className="min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className="text-lg sm:text-xl font-bold tracking-tight text-white font-sans whitespace-nowrap group-hover:text-derma-accent transition-colors">
-                  SkinScan<span className="text-derma-accent font-extrabold">.AI</span>
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-derma-surface text-derma-accent rounded border border-derma-border whitespace-nowrap">
-                  DermaSensor UI
-                </span>
-              </div>
-              <p className="hidden md:block text-[11px] text-derma-muted font-medium truncate">
-                4-Stage Clinical Risk Stratification & Triage
+              <span className="block text-xl font-display font-semibold tracking-tight text-slate-50 whitespace-nowrap">
+                SkinScan<span className="text-derma-accent">.AI</span>
+              </span>
+              <p className="hidden md:block text-xs text-derma-muted truncate">
+                Skin lesion risk check
               </p>
             </div>
           </div>
@@ -76,8 +70,8 @@ export default function Navbar({
               title="Return to Home Overview & Guide"
               className={`h-8 flex items-center space-x-1.5 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 isHome
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-md font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-md font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Home className="w-3.5 h-3.5" />
@@ -89,8 +83,8 @@ export default function Navbar({
               title="Point-of-Care Diagnostic Scanner"
               className={`h-8 flex items-center space-x-1.5 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'triage' && !isHome
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-md font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-md font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
@@ -101,8 +95,8 @@ export default function Navbar({
               onClick={() => setActiveTab('xai')}
               className={`h-8 flex items-center space-x-1.5 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'xai'
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-md font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-md font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Brain className="w-3.5 h-3.5" />
@@ -113,8 +107,8 @@ export default function Navbar({
               onClick={() => setActiveTab('research')}
               className={`h-8 flex items-center space-x-1.5 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'research'
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-md font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-md font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -145,7 +139,7 @@ export default function Navbar({
                 <span
                   className={`w-2 h-2 rounded-full flex-shrink-0 ${
                     backendHealth.online && backendHealth.modelLoaded
-                      ? 'bg-derma-teal animate-pulse'
+                      ? 'bg-derma-teal'
                       : backendHealth.online
                         ? 'bg-amber-400'
                         : 'bg-slate-500'
@@ -163,7 +157,7 @@ export default function Navbar({
 
             <button
               onClick={onOpenPipeline}
-              className="hidden lg:flex items-center h-10 space-x-2 px-3.5 text-xs font-medium text-slate-300 bg-derma-card/80 hover:bg-derma-surface border border-derma-border rounded-xl transition-all whitespace-nowrap shadow-sm hover:text-white"
+              className="hidden lg:flex items-center h-10 space-x-2 px-3.5 text-xs font-medium text-slate-300 bg-derma-card/80 hover:bg-derma-surface border border-derma-border rounded-xl transition-all whitespace-nowrap shadow-sm hover:text-slate-50"
               title="View Hybrid DenseNet121 + Metadata MLP Architecture & Formulas"
             >
               <Cpu className="w-4 h-4 text-derma-accent" />
@@ -172,7 +166,7 @@ export default function Navbar({
 
             <button
               onClick={onOpenReport}
-              className="flex items-center h-10 space-x-2 px-3.5 sm:px-4 text-xs font-bold text-slate-900 bg-gradient-to-r from-derma-accent to-derma-blue hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 whitespace-nowrap"
+              className="flex items-center h-10 space-x-2 px-3.5 sm:px-4 text-xs font-bold text-slate-900 bg-derma-accent hover:brightness-110 rounded-xl shadow-glow-cyan transition-all transform active:scale-95 whitespace-nowrap"
             >
               <FileText className="w-4 h-4 flex-shrink-0" />
               <span>
@@ -183,12 +177,12 @@ export default function Navbar({
             {/* Clinician Authentication & Persistent History Controls */}
             {currentUser ? (
               <div className="flex items-center space-x-1.5 sm:space-x-2 bg-derma-card/90 border border-derma-border px-2 sm:px-2.5 py-1 rounded-xl h-10">
-                <div className="flex items-center space-x-1.5 text-xs text-white font-medium">
+                <div className="flex items-center space-x-1.5 text-xs text-slate-50 font-medium">
                   <div className="w-6 h-6 rounded-lg bg-derma-surface flex items-center justify-center text-derma-accent border border-derma-border">
                     <User className="w-3.5 h-3.5" />
                   </div>
                   <span className="max-w-[100px] truncate hidden 2xl:inline">{currentUser.name}</span>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-derma-surface text-derma-teal border border-derma-border">
+                  <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-derma-surface text-derma-teal border border-derma-border">
                     {currentUser.role || 'Clinician'}
                   </span>
                 </div>
@@ -196,7 +190,7 @@ export default function Navbar({
                 <button
                   onClick={onOpenHistory}
                   title="View Persistent Scan History"
-                  className="flex items-center space-x-1 text-xs px-2 py-1 rounded-lg text-slate-300 hover:text-white hover:bg-derma-surface transition-colors"
+                  className="flex items-center space-x-1 text-xs px-2 py-1 rounded-lg text-slate-300 hover:text-slate-50 hover:bg-derma-surface transition-colors"
                 >
                   <History className="w-3.5 h-3.5 text-derma-accent" />
                   <span className="hidden sm:inline">History</span>
@@ -213,7 +207,7 @@ export default function Navbar({
             ) : (
               <button
                 onClick={onOpenAuthModal}
-                className="flex items-center h-10 space-x-1.5 px-3 text-xs font-semibold text-slate-200 bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all shadow-sm hover:text-white whitespace-nowrap"
+                className="flex items-center h-10 space-x-1.5 px-3 text-xs font-semibold text-slate-200 bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all shadow-sm hover:text-slate-50 whitespace-nowrap"
                 title="Sign in to save scans & attach histopathology ground truth"
               >
                 <LogIn className="w-3.5 h-3.5 text-derma-accent" />
@@ -228,10 +222,10 @@ export default function Navbar({
           <div className="flex items-center space-x-1 bg-derma-card/80 p-1 rounded-xl border border-derma-border flex-1 min-w-0">
             <button
               onClick={onGoHome || (() => setActiveTab('triage'))}
-              className={`flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 isHome
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Home className="w-3.5 h-3.5 flex-shrink-0" />
@@ -240,10 +234,10 @@ export default function Navbar({
 
             <button
               onClick={onGoToTriage || (() => setActiveTab('triage'))}
-              className={`flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'triage' && !isHome
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Activity className="w-3.5 h-3.5 flex-shrink-0" />
@@ -252,10 +246,10 @@ export default function Navbar({
 
             <button
               onClick={() => setActiveTab('xai')}
-              className={`flex-1 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'xai'
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <Brain className="w-3.5 h-3.5 flex-shrink-0" />
@@ -264,10 +258,10 @@ export default function Navbar({
 
             <button
               onClick={() => setActiveTab('research')}
-              className={`flex-1 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 activeTab === 'research'
-                  ? 'bg-gradient-to-r from-derma-blue to-derma-accent text-slate-950 shadow-sm font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-derma-surface/60'
+                  ? 'bg-derma-accent text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-300 hover:text-slate-50 hover:bg-derma-surface/60'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
@@ -277,7 +271,7 @@ export default function Navbar({
 
           <button
             onClick={onOpenPipeline}
-            className="lg:hidden flex items-center space-x-1 px-2.5 py-2 text-[11px] font-semibold text-derma-accent bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all whitespace-nowrap flex-shrink-0"
+            className="lg:hidden flex items-center space-x-1 px-2.5 py-2 text-xs font-semibold text-derma-accent bg-derma-card hover:bg-derma-surface border border-derma-border rounded-xl transition-all whitespace-nowrap flex-shrink-0"
             title="View Hybrid DenseNet121 Architecture"
           >
             <Cpu className="w-3.5 h-3.5 flex-shrink-0" />

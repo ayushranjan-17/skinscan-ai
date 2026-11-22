@@ -68,21 +68,14 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
   const disease = DISEASE_INFO[result.code] || DISEASE_INFO['mel'];
 
   return (
-    <div className="glass-panel rounded-3xl p-6 border border-derma-border shadow-2xl relative overflow-hidden">
-      {/* Background ambient glow based on stage */}
-      <div
-        className={`orbital-glow w-72 h-72 ${
-          result.riskStageNum >= 3 ? 'bg-derma-rose/15' : 'bg-derma-teal/15'
-        } -top-16 -right-16`}
-      />
-
+    <div className="glass-panel rounded-2xl p-6 border border-derma-border shadow-2xl relative overflow-hidden">
       {/* Card Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-derma-border/70 relative z-10">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-derma-muted">
+          <span className="text-xs font-bold text-derma-muted">
             Point-of-Care Objective Assessment
           </span>
-          <h2 className="text-xl sm:text-2xl font-black text-white mt-0.5">{result.name}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-50 mt-0.5">{result.name}</h2>
         </div>
         <div>{getUrgencyBadge(result.urgencyLevel)}</div>
       </div>
@@ -90,8 +83,8 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
       {/* Grid: DermaSensor Gauge + 4-Tier Risk Matrix */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 relative z-10">
         {/* Left: DermaSensor 1-10 Dial Gauge (5 cols) */}
-        <div className="md:col-span-5 bg-derma-bg/70 p-5 rounded-2xl border border-derma-border/90 flex flex-col items-center justify-center text-center">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-2">
+        <div className="md:col-span-5 bg-derma-bg/70 p-5 rounded-xl border border-derma-border/90 flex flex-col items-center justify-center text-center">
+          <span className="text-xs font-semibold text-slate-300 mb-2">
             Malignancy Spectral Score
           </span>
 
@@ -101,10 +94,10 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
               {/* Semi-circular gradient path */}
               <defs>
                 <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#00D084" /> {/* Green: 1-3 */}
-                  <stop offset="35%" stopColor="#FFDC4B" /> {/* Yellow: 4-5 */}
-                  <stop offset="65%" stopColor="#F59E0B" /> {/* Amber: 6-7 */}
-                  <stop offset="100%" stopColor="#EF4444" /> {/* Red: 8-10 */}
+                  <stop offset="0%" stopColor="#34C38F" /> {/* Green: 1-3 */}
+                  <stop offset="35%" stopColor="#EBC95A" /> {/* Yellow: 4-5 */}
+                  <stop offset="65%" stopColor="#E8A33D" /> {/* Amber: 6-7 */}
+                  <stop offset="100%" stopColor="#E5645A" /> {/* Red: 8-10 */}
                 </linearGradient>
               </defs>
 
@@ -131,7 +124,7 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
               {/* Needle */}
               <g transform={`translate(100, 100) rotate(${needleAngle})`}>
                 <polygon points="-4,0 4,0 0,-78" fill="#FFFFFF" />
-                <circle cx="0" cy="0" r="7" fill="#00F0FF" />
+                <circle cx="0" cy="0" r="7" fill="#4FD1E8" />
                 <circle cx="0" cy="0" r="3" fill="#070B14" />
               </g>
 
@@ -171,7 +164,7 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
 
           {/* Large Digital Score */}
           <div className="mt-1 flex items-baseline space-x-1.5">
-            <span className="text-4xl font-black text-white font-mono tracking-tight">
+            <span className="text-4xl font-bold text-slate-50 font-mono tracking-tight">
               {score.toFixed(1)}
             </span>
             <span className="text-xs font-bold text-derma-muted font-mono">/ 10.0</span>
@@ -179,15 +172,15 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
 
           {/* DermaSensor Binary Clinical Result */}
           <div className="mt-3 w-full py-2 px-3 rounded-xl bg-derma-card border border-derma-border">
-            <p className="text-[11px] text-derma-muted uppercase font-semibold">
+            <p className="text-xs text-derma-muted font-semibold">
               DermaSensor Assessment
             </p>
             <p
-              className={`text-sm font-extrabold ${
+              className={`text-sm font-semibold ${
                 score >= 5.5 ? 'text-derma-rose' : 'text-derma-teal'
               }`}
             >
-              {score >= 5.5 ? '⚡ INVESTIGATE FURTHER' : '✓ ROUTINE MONITOR'}
+              {score >= 5.5 ? 'Worth a closer look' : 'Routine monitoring'}
             </p>
           </div>
         </div>
@@ -195,14 +188,14 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
         {/* Right: 4-Tier Clinical Risk Stratification (7 cols) */}
         <div className="md:col-span-7 flex flex-col justify-between space-y-4">
           {/* Active Risk Stage Banner */}
-          <div className={`p-4 rounded-2xl border ${getStageColorClass(result.riskStageNum)}`}>
+          <div className={`p-4 rounded-xl border ${getStageColorClass(result.riskStageNum)}`}>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider">Clinical Risk Tier</span>
+              <span className="text-xs font-bold">Clinical Risk Tier</span>
               <span className="text-xs font-mono font-bold">
                 Classification Confidence: {(result.confidence * 100).toFixed(1)}%
               </span>
             </div>
-            <h3 className="text-xl font-extrabold mt-1">{result.riskStage}</h3>
+            <h3 className="text-xl font-semibold mt-1">{result.riskStage}</h3>
             <p className="text-xs text-slate-300 mt-1 font-medium">{result.actionNeeded}</p>
           </div>
 
@@ -220,13 +213,13 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
                   key={stage.num}
                   className={`p-2 rounded-xl border text-center transition-all ${
                     isActive
-                      ? `border-derma-accent bg-derma-surface font-bold text-white shadow-glow-cyan scale-[1.03]`
+                      ? `border-derma-accent bg-derma-surface font-bold text-slate-50 shadow-glow-cyan scale-[1.03]`
                       : `border-derma-border/60 bg-derma-card/40 text-slate-500 opacity-60`
                   }`}
                 >
-                  <span className="text-[10px] font-mono block">Stage {stage.num}</span>
+                  <span className="text-[11px] font-mono block">Stage {stage.num}</span>
                   <span className="text-xs font-bold block truncate">{stage.label}</span>
-                  <span className="text-[9px] block text-derma-muted truncate">{stage.sub}</span>
+                  <span className="text-[11px] block text-derma-muted truncate">{stage.sub}</span>
                 </div>
               );
             })}
@@ -238,7 +231,7 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
               <span>ICD-10 Diagnostic Category:</span>
               <span className="font-mono text-slate-300 font-semibold">{result.icd10}</span>
             </div>
-            <p className="text-slate-300 text-[11px]">
+            <p className="text-slate-300 text-xs">
               <strong className="text-derma-accent">Physician Note: </strong>
               {result.clinicalNotes}
             </p>
@@ -247,21 +240,21 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
           {/* NEW: SPECIALIST DOCTOR & CLINICAL ROUTING */}
           {result.referral && (
             <div
-              className={`p-4 rounded-2xl border ${
+              className={`p-4 rounded-xl border ${
                 result.referral.isCancer
                   ? 'bg-rose-950/30 border-rose-500/40 text-rose-100'
                   : 'bg-emerald-950/30 border-derma-teal/40 text-emerald-100'
               }`}
             >
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
+                <span className="text-[11px] font-bold text-slate-300 flex items-center space-x-1.5">
                   <span
                     className={`w-2 h-2 rounded-full ${result.referral.isCancer ? 'bg-derma-rose animate-ping' : 'bg-derma-teal'}`}
                   />
                   <span>Recommended Attending Doctor & Routing</span>
                 </span>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                     result.referral.isCancer
                       ? 'bg-rose-500/30 text-rose-200'
                       : 'bg-emerald-500/30 text-emerald-200'
@@ -273,26 +266,26 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
 
               <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-medium">
+                  <span className="text-[11px] text-slate-400 block font-medium">
                     Assigned Specialist:
                   </span>
-                  <p className="font-extrabold text-white text-sm mt-0.5">
+                  <p className="font-semibold text-slate-50 text-sm mt-0.5">
                     {result.referral.doctorName}
                   </p>
-                  <p className="text-[11px] text-derma-accent font-semibold">
+                  <p className="text-xs text-derma-accent font-semibold">
                     {result.referral.doctorTitle}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                  <p className="text-[11px] text-slate-400 mt-1 font-mono">
                     {result.referral.facility}
                   </p>
                 </div>
 
                 <div className="bg-derma-bg/60 p-2.5 rounded-xl border border-derma-border/70 space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">
+                  <span className="text-[11px] text-slate-400 font-bold block">
                     Pathology Assessment:
                   </span>
                   <span
-                    className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                    className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
                       result.referral.isCancer
                         ? 'bg-rose-500/20 text-derma-rose border border-rose-500/30'
                         : 'bg-emerald-500/20 text-derma-teal border border-emerald-500/30'
@@ -300,7 +293,7 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
                   >
                     {result.referral.triageClassification}
                   </span>
-                  <p className="text-[10px] text-slate-300 mt-1 leading-snug">
+                  <p className="text-[11px] text-slate-300 mt-1 leading-snug">
                     <strong>Action: </strong>
                     {result.referral.recommendedProcedure}
                   </p>
@@ -313,7 +306,7 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
 
       {/* Class Probabilities Bar Graph */}
       <div className="mt-6 pt-5 border-t border-derma-border/60">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">
+        <h4 className="text-xs font-bold text-slate-300 mb-3">
           7-Class Multi-Head Softmax Probability Distribution
         </h4>
 
@@ -333,18 +326,18 @@ export default function RiskGaugeCard({ result, onOpenReport }) {
               >
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span
-                    className={`font-semibold ${isHighest ? 'text-white font-bold' : 'text-slate-300'}`}
+                    className={`font-semibold ${isHighest ? 'text-slate-50 font-bold' : 'text-slate-300'}`}
                   >
                     {diseaseMeta.name}
                   </span>
-                  <span className="font-mono text-[11px] text-derma-accent font-bold">{pct}%</span>
+                  <span className="font-mono text-xs text-derma-accent font-bold">{pct}%</span>
                 </div>
                 {/* Progress bar */}
                 <div className="w-full h-1.5 bg-derma-card rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${
                       diseaseMeta.type === 'Malignant'
-                        ? 'bg-gradient-to-r from-derma-amber to-derma-rose'
+                        ? 'bg-derma-amber'
                         : diseaseMeta.type === 'Pre-Malignant'
                           ? 'bg-derma-amber'
                           : diseaseMeta.type === 'Atypical'

@@ -163,7 +163,7 @@ export default function DiagnosticWorkbench({
   };
 
   return (
-    <div className="glass-panel p-6 rounded-3xl border border-derma-border shadow-2xl relative">
+    <div className="glass-panel p-6 rounded-2xl border border-derma-border shadow-2xl relative">
       {/* Header */}
       {!hideImageInput && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-derma-border/70">
@@ -172,7 +172,7 @@ export default function DiagnosticWorkbench({
               <span className="p-2 rounded-xl bg-derma-blue/20 text-derma-accent border border-derma-border">
                 <Sparkles className="w-5 h-5" />
               </span>
-              <h2 className="text-xl font-bold text-white font-sans">
+              <h2 className="text-xl font-bold text-slate-50 font-sans">
                 Clinical Ingestion & Patient Context
               </h2>
             </div>
@@ -192,7 +192,7 @@ export default function DiagnosticWorkbench({
               className={`px-3 py-1.5 rounded-lg transition-all ${
                 activeInputTab === 'benchmarks'
                   ? 'bg-derma-surface text-derma-accent border border-derma-border font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-400 hover:text-slate-50'
               }`}
             >
               HAM10000 Benchmarks
@@ -205,7 +205,7 @@ export default function DiagnosticWorkbench({
               className={`px-3 py-1.5 rounded-lg transition-all ${
                 activeInputTab === 'upload'
                   ? 'bg-derma-surface text-derma-accent border border-derma-border font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-400 hover:text-slate-50'
               }`}
             >
               Upload File
@@ -218,7 +218,7 @@ export default function DiagnosticWorkbench({
               className={`px-3 py-1.5 rounded-lg transition-all ${
                 activeInputTab === 'camera'
                   ? 'bg-derma-surface text-derma-accent border border-derma-border font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-400 hover:text-slate-50'
               }`}
             >
               Live Camera
@@ -235,10 +235,10 @@ export default function DiagnosticWorkbench({
             <div className={activeInputTab === 'benchmarks' ? 'block' : 'hidden'}>
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  <span className="text-xs font-bold text-slate-300">
                     Select Validated Clinical Benchmark Case:
                   </span>
-                  <span className="text-[11px] text-derma-accent font-semibold">7 Classes (HAM10000)</span>
+                  <span className="text-xs text-derma-accent font-semibold">7 Classes (HAM10000)</span>
                 </div>
 
                 {/* Benchmark Carousel / Grid */}
@@ -253,7 +253,7 @@ export default function DiagnosticWorkbench({
                           setCustomImageSrc(null);
                           setRawFile(null);
                         }}
-                        className={`cursor-pointer p-2.5 rounded-2xl border transition-all flex flex-col items-center text-center ${
+                        className={`cursor-pointer p-2.5 rounded-xl border transition-all flex flex-col items-center text-center ${
                           isSelected
                             ? 'border-derma-accent bg-derma-surface/90 shadow-glow-cyan scale-[1.02]'
                             : 'border-derma-border/70 bg-derma-card/60 hover:border-slate-500 hover:bg-derma-card'
@@ -278,7 +278,7 @@ export default function DiagnosticWorkbench({
                           )}
                         </div>
 
-                        <span className="text-xs font-bold text-white mt-2 truncate w-full">
+                        <span className="text-xs font-bold text-slate-50 mt-2 truncate w-full">
                           {lesion.shortName}
                         </span>
 
@@ -294,7 +294,7 @@ export default function DiagnosticWorkbench({
                                     : 'bg-derma-teal'
                             }`}
                           />
-                          <span className="text-[10px] text-derma-muted font-mono">
+                          <span className="text-[11px] text-derma-muted font-mono">
                             Score: {lesion.spectralScore}
                           </span>
                         </div>
@@ -305,7 +305,7 @@ export default function DiagnosticWorkbench({
 
                 {/* Selected Benchmark Detail Preview Banner */}
                 {selectedBenchmark && (
-                  <div className="mt-3.5 p-3.5 rounded-2xl bg-derma-surface/80 border border-derma-accent/40 flex items-center justify-between shadow-sm">
+                  <div className="mt-3.5 p-3.5 rounded-xl bg-derma-surface/80 border border-derma-accent/40 flex items-center justify-between shadow-sm">
                     <div className="flex items-center space-x-3 min-w-0">
                       <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-derma-accent shadow-sm bg-slate-950 flex-shrink-0">
                         <canvas
@@ -321,20 +321,20 @@ export default function DiagnosticWorkbench({
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs font-bold text-white truncate">
+                          <span className="text-xs font-bold text-slate-50 truncate">
                             {selectedBenchmark.name}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-derma-accent/20 text-derma-accent border border-derma-accent/30 uppercase flex-shrink-0">
+                          <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-derma-accent/20 text-derma-accent border border-derma-accent/30 flex-shrink-0">
                             {selectedBenchmark.code}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                        <p className="text-xs text-slate-300 mt-0.5 truncate">
                           {selectedBenchmark.category} • Baseline Risk: <span className="font-mono text-derma-accent font-bold">{selectedBenchmark.spectralScore}</span> / 10
                         </p>
                       </div>
                     </div>
                     <div className="flex-shrink-0 ml-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                         ✓ Selected Case
                       </span>
                     </div>
@@ -351,7 +351,7 @@ export default function DiagnosticWorkbench({
                 onDragEnter={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all min-h-[300px] flex flex-col items-center justify-center ${
+                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all min-h-[300px] flex flex-col items-center justify-center ${
                   isDragging
                     ? 'border-derma-accent bg-derma-accent/10 scale-[1.01]'
                     : 'border-derma-border hover:border-derma-accent bg-derma-bg/50 hover:bg-derma-surface/30'
@@ -369,7 +369,7 @@ export default function DiagnosticWorkbench({
                     <img
                       src={customImageSrc}
                       alt="Custom Upload"
-                      className="w-36 h-36 rounded-2xl object-cover mx-auto border-2 border-derma-accent shadow-glow-cyan"
+                      className="w-36 h-36 rounded-xl object-cover mx-auto border-2 border-derma-accent shadow-glow-cyan"
                     />
                     <p className="text-xs text-derma-accent font-semibold">
                       Image loaded successfully. Click or drop another file to replace.
@@ -377,10 +377,10 @@ export default function DiagnosticWorkbench({
                   </div>
                 ) : (
                   <>
-                    <div className="p-4 rounded-2xl bg-derma-surface text-derma-accent mb-3 shadow-inner">
+                    <div className="p-4 rounded-xl bg-derma-surface text-derma-accent mb-3 shadow-inner">
                       <Upload className="w-8 h-8" />
                     </div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-50">
                       Click or drag & drop dermoscopic photo
                     </p>
                     <p className="text-xs text-derma-muted mt-1">
@@ -401,7 +401,7 @@ export default function DiagnosticWorkbench({
 
             {/* Camera Tab */}
             <div className={activeInputTab === 'camera' ? 'block' : 'hidden'}>
-              <div className="relative rounded-3xl overflow-hidden border border-derma-border bg-black min-h-[300px] flex items-center justify-center">
+              <div className="relative rounded-2xl overflow-hidden border border-derma-border bg-black min-h-[300px] flex items-center justify-center">
                 {isCameraActive ? (
                   <div className="relative w-full h-[300px]">
                     <video
@@ -413,7 +413,7 @@ export default function DiagnosticWorkbench({
                     {/* Viewfinder Target Circle */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-48 h-48 rounded-full border-2 border-dashed border-derma-accent shadow-glow-cyan animate-pulse flex items-center justify-center">
-                        <span className="text-[10px] text-derma-accent font-mono bg-derma-bg/70 px-2 py-0.5 rounded">
+                        <span className="text-[11px] text-derma-accent font-mono bg-derma-bg/70 px-2 py-0.5 rounded">
                           Align Lesion Here
                         </span>
                       </div>
@@ -421,7 +421,7 @@ export default function DiagnosticWorkbench({
                     <div className="absolute bottom-4 inset-x-0 flex justify-center">
                       <button
                         onClick={captureCameraPhoto}
-                        className="px-6 py-2.5 bg-derma-accent hover:bg-derma-accentHover text-slate-950 font-bold rounded-2xl text-xs flex items-center space-x-2 shadow-glow-cyan"
+                        className="px-6 py-2.5 bg-derma-accent hover:bg-derma-accentHover text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-2 shadow-glow-cyan"
                       >
                         <Camera className="w-4 h-4" />
                         <span>Capture Lesion Scan</span>
@@ -433,7 +433,7 @@ export default function DiagnosticWorkbench({
                     <img
                       src={customImageSrc}
                       alt="Captured"
-                      className="w-36 h-36 rounded-2xl object-cover mx-auto border border-derma-accent"
+                      className="w-36 h-36 rounded-xl object-cover mx-auto border border-derma-accent"
                     />
                     <button
                       onClick={startCamera}
@@ -462,12 +462,12 @@ export default function DiagnosticWorkbench({
         {/* Right Col: Patient Metadata Form (conditionally hidden in step-by-step mode) */}
         {!hidePatientForm && (
           <div
-            className={`${hideImageInput ? 'lg:col-span-12' : 'lg:col-span-5'} bg-derma-bg/60 p-5 rounded-2xl border border-derma-border/80 flex flex-col justify-between space-y-4`}
+            className={`${hideImageInput ? 'lg:col-span-12' : 'lg:col-span-5'} bg-derma-bg/60 p-5 rounded-xl border border-derma-border/80 flex flex-col justify-between space-y-4`}
           >
             <div>
               {/* Active Target Banner in Patient Info (Step 2) */}
               {hideImageInput && (
-                <div className="mb-4 p-3.5 rounded-2xl bg-derma-surface/80 border border-derma-border flex items-center justify-between">
+                <div className="mb-4 p-3.5 rounded-xl bg-derma-surface/80 border border-derma-border flex items-center justify-between">
                   <div className="flex items-center space-x-3 min-w-0">
                     <div className="w-11 h-11 rounded-xl overflow-hidden border border-derma-accent/60 bg-slate-950 flex-shrink-0">
                       {customImageSrc ? (
@@ -488,10 +488,10 @@ export default function DiagnosticWorkbench({
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] text-derma-muted font-bold uppercase tracking-wider">
+                      <p className="text-[11px] text-derma-muted font-bold">
                         Active Diagnostic Ingestion Target:
                       </p>
-                      <p className="text-xs font-bold text-white truncate">
+                      <p className="text-xs font-bold text-slate-50 truncate">
                         {customImageSrc
                           ? "Custom Dermoscopic Upload / Camera"
                           : selectedBenchmark
@@ -501,7 +501,7 @@ export default function DiagnosticWorkbench({
                     </div>
                   </div>
                   {selectedBenchmark && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-derma-accent/20 text-derma-accent border border-derma-accent/30 uppercase flex-shrink-0 ml-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-derma-accent/20 text-derma-accent border border-derma-accent/30 flex-shrink-0 ml-2">
                       HAM10000: {selectedBenchmark.code.toUpperCase()}
                     </span>
                   )}
@@ -511,7 +511,7 @@ export default function DiagnosticWorkbench({
               <div className="flex items-center justify-between pb-3 border-b border-derma-border/50">
                 <div className="flex items-center space-x-2">
                   <User className="w-4 h-4 text-derma-accent" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  <h3 className="text-xs font-bold text-slate-200">
                     Patient Metadata & Prior
                   </h3>
                 </div>
@@ -530,10 +530,10 @@ export default function DiagnosticWorkbench({
                       });
                     }
                   }}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all ${
                     skipMetadata
                       ? "bg-derma-accent/20 border-derma-accent text-derma-accent font-bold"
-                      : "bg-derma-card border-derma-border text-slate-400 hover:text-white"
+                      : "bg-derma-card border-derma-border text-slate-400 hover:text-slate-50"
                   }`}
                 >
                   {skipMetadata ? "✓ Skipped (Image Only)" : "Skip Patient Info"}
@@ -541,18 +541,18 @@ export default function DiagnosticWorkbench({
               </div>
 
               {skipMetadata ? (
-                <div className="mt-4 p-4 rounded-2xl bg-derma-surface/60 border border-derma-accent/30 text-center space-y-2.5">
+                <div className="mt-4 p-4 rounded-xl bg-derma-surface/60 border border-derma-accent/30 text-center space-y-2.5">
                   <div className="w-8 h-8 rounded-full bg-derma-accent/20 text-derma-accent flex items-center justify-center mx-auto">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <p className="text-xs font-bold text-white">⚡ Image-Only Mode Active</p>
-                  <p className="text-[11px] text-derma-muted leading-relaxed">
+                  <p className="text-xs font-bold text-slate-50">Image-Only Mode Active</p>
+                  <p className="text-xs text-derma-muted leading-relaxed">
                     AI classification will evaluate the lesion purely from dermatoscopic visual features (DenseNet121 + DullRazor + ABCD scoring). Patient demographic records are skipped.
                   </p>
                   <button
                     type="button"
                     onClick={() => setSkipMetadata(false)}
-                    className="text-[11px] text-derma-accent hover:underline font-semibold block mx-auto pt-1"
+                    className="text-xs text-derma-accent hover:underline font-semibold block mx-auto pt-1"
                   >
                     ← Click to enter patient details
                   </button>
@@ -571,11 +571,11 @@ export default function DiagnosticWorkbench({
                       onClick={() => onUpdatePatientData?.({ lesionType: 'mole' })}
                       className={`p-2 rounded-xl border text-center transition-all flex items-center justify-center space-x-1.5 ${
                         patientData?.lesionType !== 'wound'
-                          ? 'bg-derma-accent/20 border-derma-accent text-white font-bold shadow-sm shadow-derma-accent/20'
-                          : 'bg-derma-card border-derma-border text-slate-400 hover:text-white'
+                          ? 'bg-derma-accent/20 border-derma-accent text-slate-50 font-bold shadow-sm shadow-derma-accent/20'
+                          : 'bg-derma-card border-derma-border text-slate-400 hover:text-slate-50'
                       }`}
                     >
-                      <span>🔘 Pigmented Mole / Spot</span>
+                      <span>Pigmented Mole / Spot</span>
                     </button>
                     <button
                       type="button"
@@ -589,10 +589,10 @@ export default function DiagnosticWorkbench({
                       className={`p-2 rounded-xl border text-center transition-all flex items-center justify-center space-x-1.5 ${
                         patientData?.lesionType === 'wound'
                           ? 'bg-amber-500/25 border-amber-500 text-amber-300 font-bold shadow-sm shadow-amber-500/20'
-                          : 'bg-derma-card border-derma-border text-slate-400 hover:text-white'
+                          : 'bg-derma-card border-derma-border text-slate-400 hover:text-slate-50'
                       }`}
                     >
-                      <span>🩹 Acute Wound / Scab / Cut</span>
+                      <span>Acute Wound / Scab / Cut</span>
                     </button>
                   </div>
                 </div>
@@ -624,7 +624,7 @@ export default function DiagnosticWorkbench({
                         if (!num || num < 1) onUpdatePatientData?.({ age: 1 });
                         else if (num > 120) onUpdatePatientData?.({ age: 120 });
                       }}
-                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-white font-mono focus:border-derma-accent focus:outline-none"
+                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-slate-50 font-mono focus:border-derma-accent focus:outline-none"
                     />
                   </div>
 
@@ -633,7 +633,7 @@ export default function DiagnosticWorkbench({
                     <select
                       value={patientData?.sex ?? 'male'}
                       onChange={(e) => onUpdatePatientData?.({ sex: e.target.value })}
-                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-white focus:border-derma-accent focus:outline-none"
+                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-slate-50 focus:border-derma-accent focus:outline-none"
                     >
                       <option value="male">Male</option>
                       <option value="female">Female</option>
@@ -650,7 +650,7 @@ export default function DiagnosticWorkbench({
                   <select
                     value={patientData?.localization ?? 'back'}
                     onChange={(e) => onUpdatePatientData?.({ localization: e.target.value })}
-                    className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-white focus:border-derma-accent focus:outline-none"
+                    className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-slate-50 focus:border-derma-accent focus:outline-none"
                   >
                     <option value="back">Back / Torso (High Sun Exposure)</option>
                     <option value="lower extremity">Lower Extremity (Leg / Ankle / Foot)</option>
@@ -693,7 +693,7 @@ export default function DiagnosticWorkbench({
                         if (!num || num < 1) onUpdatePatientData?.({ durationMonths: 1 });
                         else if (num > 600) onUpdatePatientData?.({ durationMonths: 600 });
                       }}
-                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-white font-mono focus:border-derma-accent focus:outline-none"
+                      className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-slate-50 font-mono focus:border-derma-accent focus:outline-none"
                     />
                   </div>
 
@@ -707,7 +707,7 @@ export default function DiagnosticWorkbench({
                         }
                         className="rounded border-derma-border text-derma-accent focus:ring-0 focus:ring-offset-0 bg-derma-bg"
                       />
-                      <span className="text-[11px] text-slate-300 font-medium leading-tight">
+                      <span className="text-xs text-slate-300 font-medium leading-tight">
                         Prior Melanoma History
                       </span>
                     </label>
@@ -722,21 +722,21 @@ export default function DiagnosticWorkbench({
                   <select
                     value={patientData?.doctorPreference ?? 'auto'}
                     onChange={(e) => onUpdatePatientData?.({ doctorPreference: e.target.value })}
-                    className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-white focus:border-derma-accent focus:outline-none text-xs"
+                    className="w-full bg-derma-card border border-derma-border rounded-xl px-3 py-2 text-slate-50 focus:border-derma-accent focus:outline-none text-xs"
                   >
                     <option value="auto">
-                      ⚡ Automated AI Recommendation (Based on Risk Tier)
+                      Automated AI Recommendation (Based on Risk Tier)
                     </option>
                     <option value="pcp">
-                      👨‍⚕️ Local Primary Care / Family Doctor (Routine/Wounds)
+                      Local Primary Care / Family Doctor (Routine/Wounds)
                     </option>
                     <option value="derm">
-                      🔬 Consultant Clinical Dermatologist (Skin Lesions)
+                      Consultant Clinical Dermatologist (Skin Lesions)
                     </option>
                     <option value="onco">
-                      🏥 Cutaneous Surgical Oncologist (High-Risk/Cancer)
+                      Cutaneous Surgical Oncologist (High-Risk/Cancer)
                     </option>
-                    <option value="mohs">🩺 Mohs Micrographic Surgeon (Facial/Keratinocyte)</option>
+                    <option value="mohs">Mohs Micrographic Surgeon (Facial/Keratinocyte)</option>
                   </select>
                 </div>
               </div>
@@ -760,10 +760,10 @@ export default function DiagnosticWorkbench({
                     onAnalyze?.(customImageSrc, rawFile);
                   }}
                   disabled={isAnalyzing || !hasImage}
-                  className={`w-full py-3.5 rounded-2xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center space-x-2 transition-all shadow-glow-cyan ${
+                  className={`w-full py-3.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-glow-cyan ${
                     isAnalyzing || !hasImage
                       ? 'bg-derma-border text-slate-500 cursor-not-allowed opacity-50'
-                      : 'bg-gradient-to-r from-derma-accent via-cyan-300 to-derma-blue text-slate-950 hover:opacity-95 active:scale-[0.98]'
+                      : 'bg-derma-accent text-slate-950 hover:opacity-95 active:scale-[0.98]'
                   }`}
                 >
                   {isAnalyzing ? (
@@ -788,7 +788,7 @@ export default function DiagnosticWorkbench({
                     </>
                   )}
                 </button>
-                <p className="text-[10px] text-center text-derma-muted mt-2">
+                <p className="text-[11px] text-center text-derma-muted mt-2">
                   {!hasImage
                     ? "A dermoscopic photo is required before running AI analysis"
                     : skipMetadata

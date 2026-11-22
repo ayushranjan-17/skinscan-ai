@@ -50,14 +50,14 @@ def calculate_clinical_metrics(y_true, y_pred, y_prob):
     malignant_specificity = float(tn / (tn + fp + 1e-8))
     
     # 4. Multi-class ROC-AUC
+    # None means "could not be computed"; never substitute a placeholder number.
+    macro_auc = None
     if roc_auc_score is not None:
         try:
             macro_auc = float(roc_auc_score(y_true, y_prob, multi_class='ovr', average='macro'))
-        except Exception:
-            macro_auc = 0.942
-    else:
-        macro_auc = 0.942
-        
+        except ValueError:
+            pass
+
     return {
         'overall_accuracy': acc,
         'malignant_sensitivity_recall': malignant_sensitivity,
@@ -66,6 +66,44 @@ def calculate_clinical_metrics(y_true, y_pred, y_prob):
         'classification_report': report,
         'confusion_matrix': cm
     }
+
+def write_model_metrics_json(metrics, y_true, y_prob, dataset, model, path='src/data/modelMetrics.json'):
+    """Write real evaluation results in the shape the frontend Metrics tab reads."""
+    import json
+
+    codes = ['MEL', 'BCC', 'AKIEC', 'BKL', 'NV', 'VASC', 'DF']
+    names = ['Melanoma', 'Basal Cell Carcinoma', 'Actinic Keratosis', 'Benign Keratosis',
+             'Melanocytic Nevus', 'Vascular Lesion', 'Dermatofibroma']
+    report = metrics['classification_report']
+    classes = []
+    for i, (code, name) in enumerate(zip(codes, names)):
+        row = report.get(code.lower(), {})
+        auc = None
+        if roc_auc_score is not None:
+            try:
+                auc = float(roc_auc_score((np.asarray(y_true) == i).astype(int), np.asarray(y_prob)[:, i]))
+            except ValueError:
+                pass
+        classes.append({'code': code, 'name': name, 'recall': row.get('recall'),
+                        'precision': row.get('precision'), 'f1': row.get('f1-score'), 'auc': auc})
+
+    out = {
+        'status': 'evaluated',
+        'model': model,
+        'dataset': dataset,
+        'n_test': int(len(y_true)),
+        'overall_accuracy': metrics['overall_accuracy'],
+        'malignant_sensitivity': metrics['malignant_sensitivity_recall'],
+        'malignant_specificity': metrics['malignant_specificity'],
+        'macro_auc': metrics['macro_roc_auc'],
+        'classes': classes,
+        'confusion_matrix': metrics['confusion_matrix'],
+        'comparison': [],
+    }
+    with open(path, 'w') as f:
+        json.dump(out, f, indent=2)
+    return out
+
 
 if __name__ == '__main__':
     # Test harness verification

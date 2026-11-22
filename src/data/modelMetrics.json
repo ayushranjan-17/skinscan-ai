@@ -1,0 +1,21 @@
+{
+  "status": "pending",
+  "model": "skinscan_densenet121_v4.pth",
+  "dataset": null,
+  "n_test": null,
+  "overall_accuracy": null,
+  "malignant_sensitivity": null,
+  "malignant_specificity": null,
+  "macro_auc": null,
+  "classes": [
+    { "code": "MEL", "name": "Melanoma", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "BCC", "name": "Basal Cell Carcinoma", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "AKIEC", "name": "Actinic Keratosis", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "BKL", "name": "Benign Keratosis", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "NV", "name": "Melanocytic Nevus", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "VASC", "name": "Vascular Lesion", "recall": null, "precision": null, "f1": null, "auc": null },
+    { "code": "DF", "name": "Dermatofibroma", "recall": null, "precision": null, "f1": null, "auc": null }
+  ],
+  "confusion_matrix": null,
+  "comparison": []
+}

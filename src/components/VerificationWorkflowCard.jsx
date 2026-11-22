@@ -85,16 +85,16 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
       {/* 1. REAL-WORLD DATA VERIFICATION BADGE & STATUS BAR            */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div
-        className={`glass-panel rounded-3xl p-6 border shadow-2xl transition-all relative overflow-hidden ${
+        className={`glass-panel rounded-2xl p-6 border shadow-2xl transition-all relative overflow-hidden ${
           verification.is_valid_skin_upload
-            ? 'border-emerald-500/40 bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-derma-bg/80'
-            : 'border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-derma-bg/80'
+            ? 'border-emerald-500/40 bg-derma-card'
+            : 'border-amber-500/50 bg-derma-card'
         }`}
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center space-x-3.5">
             <div
-              className={`p-3 rounded-2xl border flex-shrink-0 ${
+              className={`p-3 rounded-xl border flex-shrink-0 ${
                 verification.is_valid_skin_upload
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                   : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
@@ -108,11 +108,11 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
+                <span className="text-xs font-semibold text-slate-400">
                   Real-World Verification Gate
                 </span>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                     verification.is_valid_skin_upload
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
@@ -121,12 +121,12 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   {verification.is_valid_skin_upload ? 'Passed' : 'Quality Flagged'}
                 </span>
                 {verification.fitzpatrick_type && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                     Fitzpatrick Type {verification.fitzpatrick_type} (Asian / South Asian)
                   </span>
                 )}
               </div>
-              <h3 className="text-base sm:text-lg font-black text-white mt-0.5">
+              <h3 className="text-base sm:text-lg font-bold text-slate-50 mt-0.5">
                 {verification.status_message}
               </h3>
             </div>
@@ -134,22 +134,22 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
 
           {/* Metric Chips */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 self-start md:self-auto">
-            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-[11px]">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-xs">
               <span className="text-slate-400">Skin Tone ITA:</span>{' '}
-              <strong className="text-white font-mono">{verification.estimated_skin_tone_ita}°</strong>
+              <strong className="text-slate-50 font-mono">{verification.estimated_skin_tone_ita}°</strong>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-[11px]">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-xs">
               <span className="text-slate-400">Skin Pixels:</span>{' '}
-              <strong className="text-white font-mono">{verification.skin_coverage_pct}%</strong>
+              <strong className="text-slate-50 font-mono">{verification.skin_coverage_pct}%</strong>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-[11px]">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-xs">
               <span className="text-slate-400">Blur Var:</span>{' '}
-              <strong className="text-white font-mono">{verification.blur_score}</strong>
+              <strong className="text-slate-50 font-mono">{verification.blur_score}</strong>
             </div>
             {verification.shannon_entropy !== undefined && (
-              <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-[11px]">
+              <div className="px-3 py-1.5 rounded-xl bg-slate-900/80 border border-derma-border text-xs">
                 <span className="text-slate-400">Entropy:</span>{' '}
-                <strong className="text-white font-mono">{verification.shannon_entropy}</strong>
+                <strong className="text-slate-50 font-mono">{verification.shannon_entropy}</strong>
               </div>
             )}
           </div>
@@ -159,23 +159,16 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 2. CANCER VERIFICATION VERDICT CARD                           */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="glass-panel rounded-3xl p-6 sm:p-7 border border-derma-border shadow-2xl relative overflow-hidden">
-        {/* Background glow */}
-        <div
-          className={`orbital-glow w-80 h-80 ${
-            cancerVerif.is_cancer_suspected ? 'bg-rose-500/20' : 'bg-emerald-500/15'
-          } -top-20 -right-20`}
-        />
-
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 border border-derma-border shadow-2xl relative overflow-hidden">
         <div className="relative z-10 space-y-6">
           {/* Verdict Banner Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-derma-border/70">
             <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
+              <span className="text-xs font-semibold text-slate-400">
                 Binary Cancer vs. Benign Verification
               </span>
               <div className="flex items-center space-x-2 mt-1">
-                <h2 className="text-xl sm:text-2xl font-black text-white">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-50">
                   {cancerVerif.verdict_label}
                 </h2>
               </div>
@@ -183,35 +176,35 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
 
             <div className="flex-shrink-0">
               {cancerVerif.is_cancer_suspected ? (
-                <div className="px-4 py-2 rounded-2xl bg-rose-500/20 border-2 border-rose-500/50 text-derma-rose font-black text-xs sm:text-sm flex items-center space-x-2 animate-pulse shadow-lg shadow-rose-950/40">
+                <div className="px-4 py-2 rounded-xl bg-rose-500/20 border-2 border-rose-500/50 text-derma-rose font-bold text-xs sm:text-sm flex items-center space-x-2 animate-pulse shadow-lg shadow-rose-950/40">
                   <AlertOctagon className="w-5 h-5 flex-shrink-0" />
-                  <span>SUSPECTED CANCER DETECTED</span>
+                  <span>Suspicious for cancer</span>
                 </div>
               ) : cancerVerif.malignant_probability >= 0.12 ? (
-                <div className="px-4 py-2 rounded-2xl bg-amber-500/20 border-2 border-amber-500/50 text-amber-300 font-black text-xs sm:text-sm flex items-center space-x-2">
+                <div className="px-4 py-2 rounded-xl bg-amber-500/20 border-2 border-amber-500/50 text-amber-300 font-bold text-xs sm:text-sm flex items-center space-x-2">
                   <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                  <span>MODERATE RISK / SURVEILLANCE</span>
+                  <span>Some concern, keep watching</span>
                 </div>
               ) : (
-                <div className="px-4 py-2 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 text-emerald-300 font-black text-xs sm:text-sm flex items-center space-x-2 shadow-lg shadow-emerald-950/40">
+                <div className="px-4 py-2 rounded-xl bg-emerald-500/20 border-2 border-emerald-500/50 text-emerald-300 font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-lg shadow-emerald-950/40">
                   <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                  <span>VERIFIED LIKELY BENIGN</span>
+                  <span>Likely benign</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Probability Comparison Progress Bars */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-900/60 p-5 rounded-2xl border border-derma-border/80">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-900/60 p-5 rounded-xl border border-derma-border/80">
             {/* Malignant Probability Bar */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-300 flex items-center space-x-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
                   <span>Malignant Probability</span>
-                  <span className="text-[10px] text-slate-400 font-normal">(Melanoma, BCC, AKIEC)</span>
+                  <span className="text-[11px] text-slate-400 font-normal">(Melanoma, BCC, AKIEC)</span>
                 </span>
-                <span className="font-mono font-black text-sm text-derma-rose">
+                <span className="font-mono font-bold text-sm text-derma-rose">
                   {malPct.toFixed(1)}%
                 </span>
               </div>
@@ -219,7 +212,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
                     cancerVerif.is_cancer_suspected
-                      ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-red-400 shadow-glow-rose'
+                      ? 'bg-derma-rose shadow-glow-rose'
                       : 'bg-rose-500/60'
                   }`}
                   style={{ width: `${Math.max(3, malPct)}%` }}
@@ -231,7 +224,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   title="25% Clinical Alert Threshold"
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
+              <div className="flex justify-between text-[11px] text-slate-400">
                 <span>0% Safe</span>
                 <span className="text-yellow-400 font-semibold">▲ 25% Biopsy Alert Threshold</span>
                 <span>100%</span>
@@ -244,19 +237,19 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 <span className="font-bold text-slate-300 flex items-center space-x-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
                   <span>Benign Probability</span>
-                  <span className="text-[10px] text-slate-400 font-normal">(Nevus, Keratosis, Vascular, DF)</span>
+                  <span className="text-[11px] text-slate-400 font-normal">(Nevus, Keratosis, Vascular, DF)</span>
                 </span>
-                <span className="font-mono font-black text-sm text-emerald-400">
+                <span className="font-mono font-bold text-sm text-emerald-400">
                   {benPct.toFixed(1)}%
                 </span>
               </div>
               <div className="h-4 w-full bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-teal-500 via-emerald-500 to-green-400 transition-all duration-700 shadow-glow-cyan"
+                  className="h-full rounded-full bg-derma-teal transition-all duration-700 shadow-glow-cyan"
                   style={{ width: `${Math.max(3, benPct)}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
+              <div className="flex justify-between text-[11px] text-slate-400">
                 <span>0%</span>
                 <span>Calibrated Skin-Tone Balance</span>
                 <span>100% Benign</span>
@@ -295,9 +288,9 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white truncate">{meta.name}</span>
+                        <span className="font-bold text-slate-50 truncate">{meta.name}</span>
                         <span
-                          className={`font-mono font-extrabold ${
+                          className={`font-mono font-semibold ${
                             isMal && prob >= 0.10 ? 'text-derma-rose' : 'text-slate-300'
                           }`}
                         >
@@ -327,7 +320,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center space-x-2">
+            <h3 className="text-sm font-semibold text-slate-50 flex items-center space-x-2">
               <Layers className="w-4 h-4 text-derma-accent" />
               <span>Preprocessing Visual Proof & XAI Lesion Focus</span>
             </h3>
@@ -339,15 +332,15 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Card 1: Original Upload */}
-          <div className="glass-panel rounded-2xl p-4 border border-derma-border space-y-3 flex flex-col justify-between">
+          <div className="glass-panel rounded-xl p-4 border border-derma-border space-y-3 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                <h4 className="text-xs font-bold text-slate-50">
                   1. Original Upload
                 </h4>
               </div>
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md">
+              <span className="text-[11px] font-semibold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md">
                 Raw Photo
               </span>
             </div>
@@ -364,28 +357,27 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   Original image not available
                 </div>
               )}
-              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] text-slate-300 border border-slate-800 flex items-center justify-between">
+              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-slate-300 border border-slate-800 flex items-center justify-between">
                 <span>Smartphone Lighting</span>
                 <span className="font-mono">Uncalibrated</span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed">
               Unprocessed capture with natural skin hair shafts and ambient room illumination.
             </p>
           </div>
 
           {/* Card 2: Hair-Removed & Calibrated Image */}
-          <div className="glass-panel rounded-2xl p-4 border border-derma-teal/40 space-y-3 flex flex-col justify-between relative overflow-hidden">
-            <div className="orbital-glow w-32 h-32 bg-derma-teal/15 -top-10 -right-10" />
+          <div className="glass-panel rounded-xl p-4 border border-derma-teal/40 space-y-3 flex flex-col justify-between relative overflow-hidden">
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-derma-teal inline-block animate-pulse" />
-                <h4 className="text-xs font-bold text-derma-teal uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-derma-teal inline-block" />
+                <h4 className="text-xs font-bold text-derma-teal">
                   2. Hair-Removed & Calibrated
                 </h4>
               </div>
-              <span className="text-[10px] font-bold text-derma-teal bg-derma-teal/15 px-2 py-0.5 rounded-md border border-derma-teal/30">
+              <span className="text-[11px] font-bold text-derma-teal bg-derma-teal/15 px-2 py-0.5 rounded-md border border-derma-teal/30">
                 DullRazor + LAB
               </span>
             </div>
@@ -402,28 +394,27 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   Hair removed preview generated during processing
                 </div>
               )}
-              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] text-emerald-300 border border-emerald-900/50 flex items-center justify-between">
+              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-emerald-300 border border-emerald-900/50 flex items-center justify-between">
                 <span>Red/LAB Contrast + CLAHE</span>
                 <span className="font-bold">Telea Inpainted</span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed relative z-10">
+            <p className="text-xs text-slate-400 leading-relaxed relative z-10">
               Dark hair shafts cleanly inpainted; Shades of Gray (p=6) removes yellow/warm smartphone casts.
             </p>
           </div>
 
           {/* Card 3: Grad-CAM Lesion Focus */}
-          <div className="glass-panel rounded-2xl p-4 border border-derma-accent/40 space-y-3 flex flex-col justify-between relative overflow-hidden">
-            <div className="orbital-glow w-32 h-32 bg-derma-accent/15 -top-10 -right-10" />
+          <div className="glass-panel rounded-xl p-4 border border-derma-accent/40 space-y-3 flex flex-col justify-between relative overflow-hidden">
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-derma-accent inline-block animate-pulse" />
-                <h4 className="text-xs font-bold text-derma-accent uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-derma-accent inline-block" />
+                <h4 className="text-xs font-bold text-derma-accent">
                   3. Grad-CAM Lesion Focus
                 </h4>
               </div>
-              <span className="text-[10px] font-bold text-derma-accent bg-derma-accent/15 px-2 py-0.5 rounded-md border border-derma-accent/30">
+              <span className="text-[11px] font-bold text-derma-accent bg-derma-accent/15 px-2 py-0.5 rounded-md border border-derma-accent/30">
                 DenseNet121 XAI
               </span>
             </div>
@@ -440,13 +431,13 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   Grad-CAM heatmap generated during processing
                 </div>
               )}
-              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] text-cyan-300 border border-cyan-900/50 flex items-center justify-between">
+              <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] text-cyan-300 border border-cyan-900/50 flex items-center justify-between">
                 <span>conv5_block16 Heatmap</span>
                 <span className="font-bold">Lesion Centered</span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed relative z-10">
+            <p className="text-xs text-slate-400 leading-relaxed relative z-10">
               Proves neural activations localize specifically on lesion borders, not on hair artifacts or skin pores.
             </p>
           </div>
