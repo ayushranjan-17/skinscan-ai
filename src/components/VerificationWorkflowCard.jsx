@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BIOPSY_ALERT_THRESHOLD, MODERATE_RISK_THRESHOLD, ALERT_PERCENT } from '../data/alertThreshold';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -32,17 +33,17 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
   };
 
   const cancerVerif = result.cancerVerification || {
-    is_cancer_suspected: (result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= 0.25,
-    verdict_label: ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= 0.25)
+    is_cancer_suspected: (result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= BIOPSY_ALERT_THRESHOLD,
+    verdict_label: ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= BIOPSY_ALERT_THRESHOLD)
       ? 'Suspected Malignant / Clinical Biopsy Recommended'
-      : ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= 0.12)
+      : ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= MODERATE_RISK_THRESHOLD)
       ? 'Moderate Risk / Monitor Closely'
       : 'Likely Benign',
     malignant_probability: Math.round(((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0)) * 1000) / 1000,
     benign_probability: Math.round((1.0 - ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0))) * 1000) / 1000,
-    risk_tier: ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= 0.25)
+    risk_tier: ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= BIOPSY_ALERT_THRESHOLD)
       ? 'High Malignancy Risk'
-      : ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= 0.12)
+      : ((result.probabilities?.mel || 0) + (result.probabilities?.bcc || 0) + (result.probabilities?.akiec || 0) >= MODERATE_RISK_THRESHOLD)
       ? 'Moderate Risk'
       : 'Low / Reassuring',
     class_breakdown: result.probabilities || {},
@@ -180,7 +181,7 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   <AlertOctagon className="w-5 h-5 flex-shrink-0" />
                   <span>Suspicious for cancer</span>
                 </div>
-              ) : cancerVerif.malignant_probability >= 0.12 ? (
+              ) : cancerVerif.malignant_probability >= MODERATE_RISK_THRESHOLD ? (
                 <div className="px-4 py-2 rounded-xl bg-amber-500/20 border-2 border-amber-500/50 text-amber-300 font-bold text-xs sm:text-sm flex items-center space-x-2">
                   <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                   <span>Some concern, keep watching</span>
@@ -217,16 +218,16 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                   }`}
                   style={{ width: `${Math.max(3, malPct)}%` }}
                 />
-                {/* 25% Threshold marker */}
+                {/* Alert threshold marker */}
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-yellow-400/80 z-10"
-                  style={{ left: '25%' }}
-                  title="25% Clinical Alert Threshold"
+                  style={{ left: `${ALERT_PERCENT}%` }}
+                  title={`${ALERT_PERCENT}% Clinical Alert Threshold`}
                 />
               </div>
               <div className="flex justify-between text-[11px] text-slate-400">
                 <span>0% Safe</span>
-                <span className="text-yellow-400 font-semibold">▲ 25% Biopsy Alert Threshold</span>
+                <span className="text-yellow-400 font-semibold">▲ {ALERT_PERCENT}% Biopsy Alert Threshold</span>
                 <span>100%</span>
               </div>
             </div>

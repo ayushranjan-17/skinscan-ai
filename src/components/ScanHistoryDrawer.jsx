@@ -13,6 +13,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { getScans, deleteScan } from '../utils/api';
+import { BIOPSY_ALERT_THRESHOLD } from '../data/alertThreshold';
 
 export default function ScanHistoryDrawer({
   isOpen,
@@ -113,7 +114,7 @@ export default function ScanHistoryDrawer({
                 scan.risk_stage?.includes('4') ||
                 scan.predicted_class?.toLowerCase().includes('melanoma') ||
                 scan.predicted_class?.toLowerCase().includes('carcinoma') ||
-                (scan.malignant_probability || 0) >= 0.25;
+                (scan.malignant_probability || 0) >= BIOPSY_ALERT_THRESHOLD;
 
               return (
                 <div

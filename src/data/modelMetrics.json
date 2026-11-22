@@ -2995,9 +2995,11 @@
       "source": "Frozen ImageNet features with the same preprocessing, trained on the other lesions"
     }
   ],
-  "alert_threshold": 0.25,
-  "alert_sensitivity": 0.8243243243243243,
-  "alert_specificity": 0.8143213988343048,
-  "alert_rate": 0.3119572478289913,
-  "melanoma_alert_sensitivity": 0.8154761904761905
+  "alert_threshold": 0.175,
+  "cancer_alert_sensitivity": 0.9102040816326531,
+  "alert_sensitivity": 0.8986486486486487,
+  "melanoma_alert_sensitivity": 0.9047619047619048,
+  "alert_specificity": 0.7210657785179018,
+  "alert_rate": 0.4014696058784235,
+  "alert_ppv": 0.4425956738768719
 }

@@ -11,23 +11,24 @@
 
 ```
 +-----------------------------------------------------------------------------------------+
-|  INPUT: lesion photo (upload / camera / built-in demo cases) + age, sex, body site        |
+|  INPUT: lesion photo (upload / camera / built-in demo cases) + age, sex, body site      |
 +-----------------------------------------------------------------------------------------+
-                                           |
+                                             |
 +-----------------------------------------------------------------------------------------+
-|  PREPROCESSING: two-pass anisotropic DullRazor hair removal, skin-tone calibration        |
-|  (Shades of Gray + LAB), Fitzpatrick (ITA) skin-tone and image-quality gate                |
+|  PREPROCESSING: the model gets its training preprocessing (DullRazor + gray-world);     |
+|  the screen shows a cleaner two-pass hair-removed, skin-tone-calibrated copy;           |
+|  Fitzpatrick (ITA) skin-tone and image-quality gate                                     |
 +-----------------------------------------------------------------------------------------+
-                                           |
+                                             |
 +-----------------------------------------------------------------------------------------+
-|  MODEL: DenseNet121 image branch (1024-d) + patient-metadata MLP (32-d), fused;            |
-|  7 lesion classes, trained with focal loss and cosine annealing with warm restarts        |
+|  MODEL: DenseNet121 image branch (1024-d) + patient-metadata MLP (32-d), fused;         |
+|  7 lesion classes, trained with focal loss and cosine annealing with warm restarts      |
 +-----------------------------------------------------------------------------------------+
-                                           |
+                                             |
 +-----------------------------------------------------------------------------------------+
-|  DECISION SUPPORT: 1-10 risk score, 4-stage stratification, biopsy alert when the          |
-|  combined melanoma + BCC + actinic keratosis probability reaches 25%, Grad-CAM heatmap,    |
-|  Stolz ABCD scoring, specialist referral, clinician biopsy feedback queue, EHR report      |
+|  DECISION SUPPORT: 1-10 risk score, 4-stage stratification, biopsy alert when the       |
+|  combined melanoma + BCC + actinic keratosis probability reaches 17.5%, Grad-CAM        |
+|  heatmap, Stolz ABCD scoring, specialist referral, biopsy feedback queue, EHR report    |
 +-----------------------------------------------------------------------------------------+
 ```
 
@@ -43,11 +44,12 @@ Evaluated on **1,497 held-out HAM10000 images** from a lesion-level split (15% o
 | Macro ROC-AUC (one class vs the rest) | 0.949 |
 | Melanoma recall, top prediction | 48.8% |
 | Melanoma + BCC caught, top prediction | 56.3% |
-| Cancers flagged at the 25% alert (melanoma + BCC + actinic keratosis) | 82.4% |
-| Melanoma flagged at the 25% alert | 81.5% |
-| Benign lesions cleared at the 25% alert | 81.4% (the alert fires on 31% of all lesions) |
+| **Melanoma + BCC flagged at the 17.5% alert** | **91.0%** (95% CI 86.8% to 94.0%) |
+| Melanoma flagged at the alert | 90.5% |
+| Benign lesions cleared at the alert | 72.1% |
+| Alert fires on | 40.1% of all lesions; 44% of alerts are melanoma, BCC or actinic keratosis |
 
-The top prediction misses many melanomas because the model often ranks them second. The 25% alert is the operating point a clinician actually sees, which is why both are shown.
+The top prediction misses many melanomas because the model often ranks them second. The alert is the operating point a clinician actually sees, which is why both are shown. The 17.5% level was chosen on separate validation lesions to reach about 90% melanoma + BCC sensitivity, then measured once on the test lesions (validation 90.4%, test 91.0%). It is a trade-off: at 25% the alert flags 84% of melanoma + BCC and clears 80% of benign lesions, and at 10% it flags 96% and clears 58%.
 
 Baselines on the same test images (trained on the remaining lesions with balanced class weights):
 
@@ -63,6 +65,7 @@ The not-fine-tuned baseline catches more melanoma and BCC on the top prediction 
 **Limits to keep in mind**
 - One split of one public dataset, with no external validation.
 - HAM10000 is dermoscopy. Phone photos differ, and results on them have not been measured.
+- The model depends on its exact training preprocessing. Feeding it the cleaner hair-removed display image instead cut melanoma + BCC sensitivity from about 90% to 68% at the same threshold, so the app gives the model the training version and shows the cleaner one on screen only.
 - Hair removal is imperfect on blurry or fine hair; trim hair around the lesion and photograph in focus.
 - Decision support only, not a diagnosis.
 

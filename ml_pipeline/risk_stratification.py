@@ -4,6 +4,14 @@ and Explicit Binary Cancer Verification Engine.
 Replaces biopsy-dependent TNM staging with non-invasive visual risk triage.
 """
 
+# Summed melanoma + BCC + actinic keratosis probability at or above which a biopsy alert is raised.
+# Chosen on validation lesions to catch about 90% of melanoma + BCC (91.0% on the held-out test set).
+# src/data/alertThreshold.js must hold the same value (scripts/verify_demo.py checks this).
+BIOPSY_ALERT_THRESHOLD = 0.175
+# Lower edge of the "moderate risk / monitor" band, kept at 0.48 of the alert level (0.12 when it is 0.25).
+MODERATE_RISK_THRESHOLD = round(BIOPSY_ALERT_THRESHOLD * 0.48, 3)
+
+
 def compute_cancer_verification(probability_dict: dict | None = None, is_valid_skin_upload: bool = True) -> dict:
     """
     Computes explicit binary cancer verification and risk tiers from 7-class HAM10000 probabilities.
@@ -20,10 +28,10 @@ def compute_cancer_verification(probability_dict: dict | None = None, is_valid_s
       - 'vasc': Vascular Lesion (Hemangioma / Angiokeratoma)
       - 'wound': Acute Resolving Cutaneous Trauma / Scab (if present)
       
-    Medically Sensitive Triage Thresholds:
-      - Malignant Probability >= 0.25 (25%): Triggers Suspected Malignant / Urgent Clinical Biopsy
-      - Malignant Probability 0.12 to 0.25: Triggers Moderate Risk / Dermoscopic Surveillance (3-6 mo)
-      - Malignant Probability < 0.12: Triggers Likely Benign / Reassuring Annual Check
+    Triage thresholds (see BIOPSY_ALERT_THRESHOLD and MODERATE_RISK_THRESHOLD above):
+      - Malignant probability at or above the alert level: Suspected Malignant / Urgent Clinical Biopsy
+      - Between the moderate-risk level and the alert level: Moderate Risk / Dermoscopic Surveillance (3-6 mo)
+      - Below the moderate-risk level: Likely Benign / Reassuring Annual Check
     """
     if not probability_dict or not isinstance(probability_dict, dict):
         probability_dict = {'mel': 0.0, 'bcc': 0.0, 'akiec': 0.0, 'nv': 1.0, 'bkl': 0.0, 'df': 0.0, 'vasc': 0.0}
@@ -57,11 +65,11 @@ def compute_cancer_verification(probability_dict: dict | None = None, is_valid_s
         is_suspected = False
         verdict = "Invalid Skin Upload / Verification Failed"
         tier = "Uncertain / Out-of-Distribution"
-    elif mal_prob >= 0.25:
+    elif mal_prob >= BIOPSY_ALERT_THRESHOLD:
         is_suspected = True
         verdict = "Suspected Malignant / Clinical Biopsy Recommended"
         tier = "High Malignancy Risk"
-    elif mal_prob >= 0.12:
+    elif mal_prob >= MODERATE_RISK_THRESHOLD:
         is_suspected = False
         verdict = "Moderate Risk / Monitor Closely"
         tier = "Moderate Risk"
@@ -185,7 +193,7 @@ def map_to_4_tier_risk(predicted_code, probability_dict=None, patient_metadata=N
     p_akiec = float(probability_dict.get('akiec', 0.0)) if probability_dict else 0.0
     mal_prob = p_mel + p_bcc + p_akiec
 
-    if code != 'wound' and mal_prob >= 0.25:
+    if code != 'wound' and mal_prob >= BIOPSY_ALERT_THRESHOLD:
         if p_mel >= 0.35 or mal_prob >= 0.40:
             stage_num = 4
             stage_name = 'Stage 4: Malignant'

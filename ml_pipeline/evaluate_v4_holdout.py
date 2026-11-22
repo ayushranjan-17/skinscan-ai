@@ -21,6 +21,7 @@ PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT)
 from ml_pipeline.evaluate_metrics import calculate_clinical_metrics, write_model_metrics_json  # noqa: E402
 from ml_pipeline.holdout_common import encode_meta, iter_preprocessed, lesion_split, load_ham10000  # noqa: E402
+from ml_pipeline.risk_stratification import BIOPSY_ALERT_THRESHOLD  # noqa: E402
 
 ham_dir, out_json = sys.argv[1], sys.argv[2]
 
@@ -91,18 +92,29 @@ def summarise(name, probs):
 m_train, pr, yy = summarise('training-time forward (no clamp)', P)
 summarise('deployed forward (meta clamp 0..2.5)', Pc)
 
-# The app raises a biopsy alert when mel + bcc + akiec probability reaches ALERT_THRESHOLD.
-ALERT_THRESHOLD = 0.25
-malignant_group = np.isin(yy, [0, 1, 2])
-alerted = (pr[:, 0] + pr[:, 1] + pr[:, 2]) >= ALERT_THRESHOLD
+# The app raises a biopsy alert when mel + bcc + akiec probability reaches the alert threshold.
+# Alert figures use the deployed forward pass (metadata features clamped, as in backend/inference.py).
+ALERT_THRESHOLD = BIOPSY_ALERT_THRESHOLD
+ok_c = np.isfinite(Pc).all(1)
+prc, yyc = Pc[ok_c], Y[ok_c]
+alerted = (prc[:, 0] + prc[:, 1] + prc[:, 2]) >= ALERT_THRESHOLD
+group = np.isin(yyc, [0, 1, 2])
+cancers = np.isin(yyc, [0, 1])
 extra = {
     'alert_threshold': ALERT_THRESHOLD,
-    'alert_sensitivity': float(alerted[malignant_group].mean()),
-    'alert_specificity': float((~alerted[~malignant_group]).mean()),
+    'cancer_alert_sensitivity': float(alerted[cancers].mean()),   # melanoma + BCC
+    'alert_sensitivity': float(alerted[group].mean()),            # melanoma + BCC + actinic keratosis
+    'melanoma_alert_sensitivity': float(alerted[yyc == 0].mean()),
+    'alert_specificity': float((~alerted[~group]).mean()),        # benign classes not flagged
     'alert_rate': float(alerted.mean()),
-    'melanoma_alert_sensitivity': float(alerted[yy == 0].mean()),
+    'alert_ppv': float(alerted[group].sum() / max(1, alerted.sum())),
 }
-print({k: round(v, 3) for k, v in extra.items()})
+try:  # keep the baselines written by evaluate_baselines.py
+    with open(out_json) as f:
+        extra['comparison'] = json.load(f).get('comparison', [])
+except (OSError, ValueError):
+    pass
+print({k: round(v, 3) for k, v in extra.items() if isinstance(v, float)})
 
 write_model_metrics_json(m_train, yy, pr,
                          'HAM10000, lesion-level split (seed 42, 15% test), notebook preprocessing',

@@ -1,3 +1,4 @@
+import { BIOPSY_ALERT_THRESHOLD, MODERATE_RISK_THRESHOLD } from '../data/alertThreshold';
 // Image processing, DullRazor artifact removal, Grad-CAM heatmap generator, and ABCD analysis
 
 // Generates procedural realistic dermoscopy lesion preview on HTML5 Canvas
@@ -1042,15 +1043,15 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
   const malProb = Math.round((rawMal / total) * 1000) / 1000;
   const benProb = Math.round((rawBen / total) * 1000) / 1000;
 
-  const isCancerSuspected = malProb >= 0.25;
+  const isCancerSuspected = malProb >= BIOPSY_ALERT_THRESHOLD;
   const verdictLabel = isCancerSuspected
     ? 'Suspected Malignant / Clinical Biopsy Recommended'
-    : malProb >= 0.12
+    : malProb >= MODERATE_RISK_THRESHOLD
     ? 'Moderate Risk / Monitor Closely'
     : 'Likely Benign';
   const riskTier = isCancerSuspected
     ? 'High Malignancy Risk'
-    : malProb >= 0.12
+    : malProb >= MODERATE_RISK_THRESHOLD
     ? 'Moderate Risk'
     : 'Low / Reassuring';
 

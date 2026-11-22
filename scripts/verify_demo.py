@@ -4,7 +4,9 @@ Tests all endpoints, parameters, models, and ML pipeline functions end-to-end.
 """
 
 import io
+import json
 import os
+import re
 import sys
 import time
 import unittest
@@ -29,7 +31,12 @@ from ml_pipeline.dullrazor import (
     check_skin_and_quality,
     lesion_mask,
 )
-from ml_pipeline.risk_stratification import compute_cancer_verification, map_to_4_tier_risk
+from ml_pipeline.risk_stratification import (
+    BIOPSY_ALERT_THRESHOLD,
+    MODERATE_RISK_THRESHOLD,
+    compute_cancer_verification,
+    map_to_4_tier_risk,
+)
 from ml_pipeline.gradcam import GradCAM
 
 
@@ -239,7 +246,7 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         print("  [Pass] Clinical doctor referral routing logic confirmed")
 
     def test_07_risk_stratification_and_cancer_verification(self):
-        """Verify risk weights, adjustments, clamping, and biopsy alert at >25%."""
+        """Verify risk weights, adjustments, clamping, and the biopsy alert."""
         # Cancer verification test
         probs = {"mel": 0.20, "bcc": 0.08, "akiec": 0.02, "nv": 0.70}
         verif = compute_cancer_verification(probs)
@@ -586,6 +593,26 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         del_404 = self.client.delete(f"/scans/{scan_id}", headers=headers)
         self.assertEqual(del_404.status_code, 404)
         print("  [Pass] HITL Biopsy feedback, MLOps retrain queue, anonymized JSON export, and scan deletion verified")
+
+
+    def test_16_alert_threshold_single_source(self):
+        """The Python alert level, the front-end constant and the metrics file must agree, and the alert must switch at it."""
+        with open(os.path.join(WORKSPACE_ROOT, "src", "data", "alertThreshold.js")) as f:
+            js_value = float(re.search(r"BIOPSY_ALERT_THRESHOLD = ([0-9.]+);", f.read()).group(1))
+        self.assertEqual(js_value, BIOPSY_ALERT_THRESHOLD)
+        with open(os.path.join(WORKSPACE_ROOT, "src", "data", "modelMetrics.json")) as f:
+            self.assertEqual(json.load(f)["alert_threshold"], BIOPSY_ALERT_THRESHOLD)
+
+        def probs_with_malignant(m):
+            return {"mel": m * 0.6, "bcc": m * 0.3, "akiec": m * 0.1, "nv": 1.0 - m}
+
+        below = compute_cancer_verification(probs_with_malignant(BIOPSY_ALERT_THRESHOLD - 0.02))
+        above = compute_cancer_verification(probs_with_malignant(BIOPSY_ALERT_THRESHOLD + 0.02))
+        self.assertFalse(below["is_cancer_suspected"])
+        self.assertTrue(above["is_cancer_suspected"])
+        calm = compute_cancer_verification(probs_with_malignant(MODERATE_RISK_THRESHOLD - 0.01))
+        self.assertEqual(calm["risk_tier"], "Low / Reassuring")
+        print(f"  [Pass] Alert threshold {BIOPSY_ALERT_THRESHOLD} is identical in Python, the front end and the metrics file")
 
 
 if __name__ == "__main__":
