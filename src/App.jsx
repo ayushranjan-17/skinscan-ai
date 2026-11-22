@@ -633,7 +633,7 @@ export default function App() {
                   {/* Doctor referral info is already in the RiskGaugeCard above */}
                   {/* Show XAI explainability visualizations */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="space-y-4">
+                    <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-bold text-slate-50 flex items-center space-x-2">
                           <Brain className="w-4 h-4 text-derma-accent" />
@@ -647,17 +647,21 @@ export default function App() {
                           <ExternalLink className="w-3 h-3" />
                         </button>
                       </div>
-                      <GradCamVisualizer result={analysisResult} customImageSrc={customImageSrc} />
+                      <div className="flex-1 [&>*]:h-full">
+                        <GradCamVisualizer result={analysisResult} customImageSrc={customImageSrc} />
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-bold text-slate-50 flex items-center space-x-2">
                           <ShieldCheck className="w-4 h-4 text-derma-accent" />
                           <span>ABCD Clinical Scoring</span>
                         </h3>
                       </div>
-                      <AbcdAnalysisCard result={analysisResult} />
+                      <div className="flex-1 [&>*]:h-full">
+                        <AbcdAnalysisCard result={analysisResult} />
+                      </div>
                     </div>
                   </div>
 

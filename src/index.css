@@ -50,6 +50,18 @@
   background: #2d4075;
 }
 
+/* Keep browser-autofilled fields on the theme instead of the default yellow highlight */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:autofill {
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #17223f inset;
+  background-color: #17223f !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
 /* Card surfaces: flat and warm, no blur or glow */
 .glass-panel {
   background: #0d1527;

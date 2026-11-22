@@ -108,7 +108,7 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
   return (
     <div className="glass-panel p-6 rounded-2xl border border-derma-border shadow-2xl space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-derma-border/70">
+      <div className="flex flex-col gap-4 pb-5 border-b border-derma-border/70">
         <div>
           <div className="flex items-center space-x-2">
             <span className="p-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
@@ -126,56 +126,34 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
         </div>
 
         {/* View Mode Tabs */}
-        <div className="flex flex-wrap items-center gap-1 bg-derma-bg/90 p-1.5 rounded-xl border border-derma-border text-xs font-semibold">
-          <button
-            onClick={() => setActiveView('original')}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeView === 'original'
-                ? 'bg-derma-surface text-slate-50 border border-derma-border font-bold'
-                : 'text-slate-400 hover:text-slate-50'
-            }`}
-          >
-            1. Raw Scan
-          </button>
-          <button
-            onClick={() => setActiveView('dullrazor')}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeView === 'dullrazor'
-                ? 'bg-derma-surface text-derma-teal border border-derma-teal/40 font-bold'
-                : 'text-slate-400 hover:text-slate-50'
-            }`}
-          >
-            2. DullRazor Cleaned
-          </button>
-          <button
-            onClick={() => setActiveView('gradcam')}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeView === 'gradcam'
-                ? 'bg-derma-accent text-slate-950 font-bold shadow-glow-cyan'
-                : 'text-slate-400 hover:text-slate-50'
-            }`}
-          >
-            3. Grad-CAM Heatmap
-          </button>
-          <button
-            onClick={() => setActiveView('contour')}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeView === 'contour'
-                ? 'bg-derma-surface text-derma-accent border border-derma-border font-bold'
-                : 'text-slate-400 hover:text-slate-50'
-            }`}
-          >
-            4. Border Contour
-          </button>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-derma-bg/90 p-1.5 rounded-xl border border-derma-border text-xs font-semibold">
+          {[
+            { id: 'original', label: 'Raw scan' },
+            { id: 'dullrazor', label: 'Hair removed' },
+            { id: 'gradcam', label: 'Heatmap' },
+            { id: 'contour', label: 'Border' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveView(tab.id)}
+              className={`px-3 py-2 rounded-lg text-center whitespace-nowrap transition-colors ${
+                activeView === tab.id
+                  ? 'bg-derma-accent text-slate-950 font-bold'
+                  : 'text-slate-400 hover:text-slate-50 hover:bg-derma-surface/60'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Main Visualizer Stage */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        {/* Canvas Display Viewport (7 Cols) */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-center p-6 bg-derma-bg/90 rounded-2xl border border-derma-border relative overflow-hidden group">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-6 items-stretch">
+        {/* Canvas Display Viewport */}
+        <div className="flex flex-col items-center justify-center p-6 bg-derma-bg/90 rounded-2xl border border-derma-border relative overflow-hidden group">
           {/* Active Canvas Frame */}
-          <div className="relative w-[280px] sm:w-[320px] h-[280px] sm:h-[320px] rounded-2xl overflow-hidden shadow-2xl border-2 border-derma-border group-hover:border-derma-accent transition-all">
+          <div className="relative w-full max-w-[320px] aspect-square rounded-xl overflow-hidden shadow-2xl border-2 border-derma-border group-hover:border-derma-accent transition-all">
             {/* Canvases (controlled by activeView visibility) */}
             <canvas
               ref={origCanvasRef}
@@ -233,8 +211,8 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
           </p>
         </div>
 
-        {/* Right: Controls & Layer Explainability (5 Cols) */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* Controls & Layer Explainability */}
+        <div className="space-y-4">
           {/* Controls Box */}
           <div className="p-4 rounded-xl bg-derma-bg/60 border border-derma-border space-y-3.5 text-xs">
             <div className="flex items-center space-x-2 text-slate-300 font-bold text-xs">
@@ -264,14 +242,14 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
               <label className="block text-slate-400 mb-1.5">Colormap Palette</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'jet', name: 'Jet (Clinical)' },
+                  { id: 'jet', name: 'Jet' },
                   { id: 'turbo', name: 'Turbo' },
                   { id: 'inferno', name: 'Inferno' },
                 ].map((map) => (
                   <button
                     key={map.id}
                     onClick={() => setColormap(map.id)}
-                    className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                    className={`py-2 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${
                       colormap === map.id
                         ? 'border-derma-accent bg-derma-surface text-derma-accent font-bold'
                         : 'border-derma-border text-slate-400 hover:text-slate-50 bg-derma-card'
@@ -281,6 +259,7 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
                   </button>
                 ))}
               </div>
+              <p className="mt-2 text-xs text-derma-muted">Jet is the usual clinical colormap.</p>
             </div>
           </div>
 
@@ -291,14 +270,14 @@ export default function GradCamVisualizer({ result, customImageSrc }) {
               <span>Diagnostic Region Explanations</span>
             </h4>
 
-            <div className="space-y-2 text-xs text-slate-300">
-              <div className="p-2 rounded-lg bg-derma-bg/70 border border-derma-border/60">
-                <strong className="text-derma-accent block mb-0.5">Primary Activation Zone:</strong>
+            <div className="space-y-3 text-sm leading-relaxed text-slate-300">
+              <div className="p-3 rounded-lg bg-derma-bg/70 border border-derma-border/60">
+                <strong className="text-derma-accent block mb-1">Primary Activation Zone:</strong>
                 Deep neural attention focused on the central hyperpigmented melanin core and
                 peripheral border gradients.
               </div>
-              <div className="p-2 rounded-lg bg-derma-bg/70 border border-derma-border/60">
-                <strong className="text-derma-teal block mb-0.5">Hair Removal Verification:</strong>
+              <div className="p-3 rounded-lg bg-derma-bg/70 border border-derma-border/60">
+                <strong className="text-derma-teal block mb-1">Hair Removal Verification:</strong>
                 Morphological blackhat filter successfully removed hair follicles, preventing
                 false-positive texture confusion.
               </div>
