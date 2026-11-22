@@ -20,11 +20,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+
+try:
+    from ml_pipeline.evaluate_metrics import calculate_clinical_metrics, write_model_metrics_json
+except ImportError:
+    from evaluate_metrics import calculate_clinical_metrics, write_model_metrics_json
 
 # ─────────────────────────────────────────────────────────
 # 1. CONSTANTS & METADATA ENCODING
@@ -43,7 +48,7 @@ def extract_meta_vector(row):
     vec = np.zeros(16, dtype=np.float32)
     vec[0] = min(float(row.get('age', 50)), 100.0) / 100.0
     vec[1] = 6.0 / 120.0  # Duration
-    vec[2] = 1.0 if row.get('dx') == 'mel' else 0.0
+    vec[2] = 0.0  # melanoma-history slot stays constant (matches backend/inference.py); encoding dx here would leak the label
 
     sex = str(row.get('sex', 'male')).lower()
     s_idx = SEXES.index(sex) if sex in SEXES else 0
@@ -176,6 +181,7 @@ def run_training(
     batch_size: int = 32,
     lr: float = 1e-4,
     output_path: str = './models/skinscan_densenet121_v2.pth',
+    metrics_out: str = './src/data/modelMetrics.json',
 ):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🚀 Training on compute device: {device}")
@@ -219,9 +225,24 @@ def run_training(
                 image_dict[os.path.splitext(f)[0]] = os.path.join(root, f)
     df['image_path'] = df['image_id'].map(image_dict)
 
-    # Train / Val / Test split (70 / 15 / 15)
-    train_df, test_df = train_test_split(df, test_size=0.15, stratify=df['label'], random_state=42)
-    train_df, val_df = train_test_split(train_df, test_size=0.1765, stratify=train_df['label'], random_state=42)
+    # Train / Val / Test split (~70 / 15 / 15), grouped by lesion so that every photo of a
+    # lesion stays on one side. An image-level split leaks near-duplicate photos into the test set.
+    if 'lesion_id' not in df.columns:
+        print("⚠️ No lesion_id column: falling back to an image-level split, which may leak.")
+        df['lesion_id'] = df['image_id']
+    df['lesion_id'] = df['lesion_id'].fillna(df['image_id'])
+
+    def grouped_split(frame, n_splits):
+        splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        keep_idx, hold_idx = next(splitter.split(frame, frame['label'], groups=frame['lesion_id']))
+        return frame.iloc[keep_idx], frame.iloc[hold_idx]
+
+    trainval_df, test_df = grouped_split(df, 7)
+    train_df, val_df = grouped_split(trainval_df, 6)
+
+    train_ids, val_ids, test_ids = (set(d['lesion_id']) for d in (train_df, val_df, test_df))
+    assert not (train_ids & val_ids or train_ids & test_ids or val_ids & test_ids), \
+        "Lesion overlap between splits"
 
     print(f"📊 Dataset Splits -> Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
 
@@ -246,13 +267,9 @@ def run_training(
     val_dataset = MultiModalHAMDataset(val_df, transform=val_transforms)
     test_dataset = MultiModalHAMDataset(test_df, transform=val_transforms)
 
-    # Weighted Sampler
-    class_counts = train_df['label'].value_counts().sort_index().values
-    class_weights = 1.0 / (class_counts + 1e-6)
-    sample_weights = [class_weights[label] for label in train_df['label']]
-    sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(train_df), replacement=True)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=0)
+    # Class imbalance is handled only by the focal-loss alpha weights below; also resampling
+    # would count it twice and skew the predicted probabilities.
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
@@ -326,6 +343,27 @@ def run_training(
             torch.save(best_wts, output_path)
 
     print(f"\n✅ Training complete! Best weights saved to: {output_path}")
+
+    # One-time evaluation on the held-out, lesion-grouped test set (never used for selection).
+    model.load_state_dict(best_wts)
+    model.eval()
+    y_true, y_pred, y_prob = [], [], []
+    with torch.no_grad():
+        for images, metas, labels, _ in test_loader:
+            logits, _ = model(images.to(device), metas.to(device))
+            y_prob.append(torch.softmax(logits, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(logits, dim=1).cpu().numpy())
+            y_true.extend(labels.numpy())
+    y_true, y_pred, y_prob = np.array(y_true), np.array(y_pred), np.concatenate(y_prob)
+
+    metrics = calculate_clinical_metrics(y_true, y_pred, y_prob)
+    write_model_metrics_json(
+        metrics, y_true, y_prob,
+        dataset='HAM10000, lesion-grouped split',
+        model=os.path.basename(output_path),
+        path=metrics_out,
+    )
+    print(f"📈 Test metrics written to: {metrics_out}")
     return model
 
 
@@ -337,9 +375,11 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--output', type=str, default='./models/skinscan_densenet121_v2.pth', help='Output .pth path')
+    parser.add_argument('--metrics_out', type=str, default='./src/data/modelMetrics.json', help='Where to write test-set metrics for the UI')
     args = parser.parse_args()
 
     run_training(
+        metrics_out=args.metrics_out,
         data_dir=args.data_dir,
         metadata_csv=args.metadata,
         epochs=args.epochs,
