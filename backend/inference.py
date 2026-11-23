@@ -7,8 +7,13 @@ risk stratification, and doctor referral routing — all in one pipeline.
 import io
 import os
 import base64
+import logging
+import datetime as _dt
+import secrets as _secrets
 from typing import cast
 import numpy as np
+
+log = logging.getLogger("skinscan.inference")
 from PIL import Image
 import cv2
 
@@ -176,7 +181,7 @@ class SkinScanInferenceEngine:
 
     def load_model(self, weights_path: str):
         """Load trained model weights from .pth file."""
-        print(f"[SkinScan] Loading model weights from: {weights_path}")
+        log.info("Loading model weights from: %s", weights_path)
         state_dict = torch.load(weights_path, map_location=self.device, weights_only=True)
         # Handle both raw state_dict and wrapped checkpoint formats
         if "model_state_dict" in state_dict:
@@ -200,9 +205,7 @@ class SkinScanInferenceEngine:
             pass
 
         param_count = sum(p.numel() for p in self.model.parameters())
-        print(
-            f"[SkinScan] Model loaded successfully on {self.device} ({param_count:,} parameters)"
-        )
+        log.info("Model loaded on %s (%s parameters)", self.device, f"{param_count:,}")
 
     def _gradcam_forward_hook(self, module, input, output):
         self.gradcam_activations = output
@@ -443,27 +446,17 @@ class SkinScanInferenceEngine:
     def get_doctor_referral(
         self,
         predicted_code: str,
-        risk_stage_num: int | str = 1,
+        risk_stage_num: int = 1,
         doctor_preference: str = "auto",
         probabilities: dict | None = None,
     ) -> dict:
         """Assign specialist role based on classification, risk tier, and user preference."""
-        if isinstance(risk_stage_num, str):
-            doctor_preference = risk_stage_num
-            # Derive risk stage from code
-            if str(predicted_code).lower() in ("mel", "bcc"):
-                risk_stage_num = 4
-            elif str(predicted_code).lower() in ("akiec",):
-                risk_stage_num = 3
-            elif str(predicted_code).lower() in ("bkl",):
-                risk_stage_num = 2
-            else:
-                risk_stage_num = 1
-        else:
-            try:
-                risk_stage_num = int(risk_stage_num)
-            except (ValueError, TypeError):
-                risk_stage_num = 1
+        try:
+            risk_stage_num = int(risk_stage_num)
+        except (ValueError, TypeError):
+            raise TypeError(
+                f"get_doctor_referral: risk_stage_num must be int-coercible, got {type(risk_stage_num).__name__}"
+            )
 
         is_cancer_stage = risk_stage_num == 4
         is_mel = str(predicted_code).lower() == "mel"
@@ -489,7 +482,7 @@ class SkinScanInferenceEngine:
                 "facility": "Hospital Dermatology Outpatient Department (OPD)",
                 "contactInfo": "Schedule appointment via your local Hospital Dermatology OPD",
                 "referralTimeline": "Within 2 to 4 Weeks" if not is_cancer_stage else "Urgent Dermoscopy (Within 72h)",
-                "recommendedProcedure": "High-magnification polarized dermoscopy evaluation and diagnostic biopsy or cryosurgery.",
+                "recommendedProcedure": "High-magnification polarized dermoscopy evaluation and diagnostic biopsy; any treatment only after histology.",
                 "isCancer": is_cancer_stage,
                 "triageClassification": "Direct Patient Preference: Consultant Clinical Dermatologist",
             }
@@ -557,6 +550,12 @@ class SkinScanInferenceEngine:
                 "triageClassification": "Cancerous Malignancy (Requires Surgical Oncologist / Mohs Surgeon)",
             }
         elif risk_stage_num == 3:
+            # Stage 3 is reached either by actinic keratosis or by a melanoma/BCC probability that crossed the
+            # biopsy alert without reaching Stage 4. Freezing or 5-FU is only right for actinic keratosis: a lesion
+            # that may be melanoma or BCC must be biopsied first, never destroyed before histology.
+            p = probabilities or {}
+            p_cancer = float(p.get("mel", 0.0)) + float(p.get("bcc", 0.0))
+            ak_case = str(predicted_code).lower() == "akiec" or float(p.get("akiec", 0.0)) >= p_cancer
             return {
                 "doctorName": "Consultant Clinical Dermatologist (MD Dermatology)",
                 "doctorTitle": "Specialist in Clinical Dermatology & Photodermatology",
@@ -564,9 +563,19 @@ class SkinScanInferenceEngine:
                 "facility": "Hospital Dermatology Outpatient Department (OPD)",
                 "contactInfo": "Schedule appointment via your local Hospital Dermatology OPD",
                 "referralTimeline": "Semi-Urgent — Within 2 to 4 Weeks",
-                "recommendedProcedure": "Targeted liquid nitrogen cryosurgery (-196°C) or topical 5-Fluorouracil (5-FU) 5% field cream.",
+                "recommendedProcedure": (
+                    "Dermoscopy to confirm actinic keratosis, then liquid nitrogen cryotherapy or topical 5-fluorouracil "
+                    "(5-FU) 5% cream. Biopsy first if the lesion is thick, bleeding or growing."
+                    if ak_case
+                    else "Dermoscopy and diagnostic biopsy (excisional where possible) to rule out melanoma or basal cell "
+                    "carcinoma. Do not freeze or treat the lesion before histology."
+                ),
                 "isCancer": False,
-                "triageClassification": "Pre-Cancerous Dysplasia (Requires Specialist Clinical Dermatologist)",
+                "triageClassification": (
+                    "Pre-Cancerous Dysplasia (Requires Specialist Clinical Dermatologist)"
+                    if ak_case
+                    else "Suspicious Lesion: Biopsy Needed to Rule Out Malignancy (Clinical Dermatologist)"
+                ),
             }
         elif risk_stage_num == 2:
             return {
@@ -932,7 +941,7 @@ class SkinScanInferenceEngine:
                 display_rgb=np.array(Image.fromarray(calibrated_rgb).resize((224, 224))),
             )
         except Exception as e:
-            print(f"[SkinScan] Grad-CAM generation notice: {e}")
+            log.warning("Grad-CAM generation failed: %s", e)
 
         # Doctor referral
         referral = self.get_doctor_referral(
@@ -972,7 +981,7 @@ class SkinScanInferenceEngine:
             )
 
         return {
-            "id": f"scan-{int(np.random.rand() * 1e9)}",
+            "id": f"scan-{_secrets.token_hex(8)}",
             "name": display_name,
             "shortName": display_short,
             "code": predicted_code,
@@ -1004,7 +1013,7 @@ class SkinScanInferenceEngine:
                 "hair_mask": hair_mask_b64,
                 "gradcam": gradcam_b64,
             },
-            "analyzedAt": __import__("datetime").datetime.now().isoformat(),
+            "analyzedAt": _dt.datetime.now(_dt.timezone.utc).isoformat(),
             "modelVersion": "DenseNet121-MultiModal-FocalLoss-v4",
             "imagePattern": predicted_code,
         }

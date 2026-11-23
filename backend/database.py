@@ -16,9 +16,44 @@ DB_PATH = os.environ.get(
     "SKINSCAN_DB_PATH",
     os.path.join(os.path.dirname(__file__), "skinscan.db")
 )
-AUTH_SECRET = os.environ.get("SKINSCAN_AUTH_SECRET", "skinscan-clinical-secret-key-salt-2026")
+
+# Signing secret for bearer tokens. REQUIRED in production. A missing or weak
+# value is fatal: forged tokens would otherwise grant access to any user's
+# scans and the MLOps export endpoints.
+AUTH_SECRET = os.environ.get("SKINSCAN_AUTH_SECRET", "").strip()
+_ALLOW_DEV_SECRET = os.environ.get("SKINSCAN_ALLOW_DEV_SECRET", "").lower() in ("1", "true", "yes")
+if not AUTH_SECRET:
+    if _ALLOW_DEV_SECRET:
+        # Local development only: deterministic warning, random per-process secret so
+        # tokens do not survive a restart.
+        AUTH_SECRET = secrets.token_urlsafe(48)
+        print(
+            "[SkinScan] WARNING: SKINSCAN_AUTH_SECRET not set; using an ephemeral "
+            "development secret. All issued tokens will be invalidated on restart."
+        )
+    else:
+        raise RuntimeError(
+            "SKINSCAN_AUTH_SECRET is not set. Generate one with "
+            "`python -c 'import secrets; print(secrets.token_urlsafe(48))'` and export it "
+            "before starting the server. For local development set SKINSCAN_ALLOW_DEV_SECRET=1 "
+            "to use an ephemeral per-process secret."
+        )
+elif len(AUTH_SECRET) < 32:
+    raise RuntimeError(
+        "SKINSCAN_AUTH_SECRET is too short; use at least 32 characters of entropy."
+    )
+
+# Default token TTL. Shortened from 30 days to 8 hours; refresh on sign-in.
+ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("SKINSCAN_TOKEN_TTL_SECONDS", str(8 * 3600)))
+
 VALID_ROLES = {"clinician", "patient", "researcher"}
 VALID_BIOPSY_LABELS = {"mel", "nv", "bcc", "akiec", "bkl", "df", "vasc", "wound"}
+
+# Placeholder PBKDF2 digest used to equalize login time for unknown emails (H5).
+# Computed lazily on first use.
+_DUMMY_HASH: Optional[str] = None
+_DUMMY_SALT: str = "0" * 32
+PBKDF2_ITERATIONS = 600_000
 
 
 def get_db_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
@@ -71,47 +106,117 @@ def init_db(db_path: str = DB_PATH) -> None:
             ON scans (user_id, created_at DESC);
         """)
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_scans_queued 
+            CREATE INDEX IF NOT EXISTS idx_scans_queued
             ON scans (queued_for_retrain) WHERE queued_for_retrain = 1;
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS revoked_tokens (
+                jti TEXT PRIMARY KEY,
+                revoked_at INTEGER NOT NULL,
+                exp INTEGER NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_revoked_tokens_exp
+            ON revoked_tokens (exp);
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_attempts (
+                key TEXT NOT NULL,
+                ts INTEGER NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_auth_attempts_key_ts
+            ON auth_attempts (key, ts);
+        """)
         conn.commit()
+
+
+# ─────────────────────────────────────────────────────────
+# RATE LIMITING (sliding window, SQLite-backed)
+# ─────────────────────────────────────────────────────────
+
+def record_auth_attempt(key: str) -> int:
+    """Log one auth attempt for `key` (e.g. 'login:ip:1.2.3.4' or 'login:email:a@b').
+
+    Returns the number of attempts recorded for `key` within the last 15 minutes.
+    """
+    now = int(time.time())
+    window_start = now - 15 * 60
+    with get_db_connection() as conn:
+        conn.execute("INSERT INTO auth_attempts (key, ts) VALUES (?, ?)", (key, now))
+        conn.execute("DELETE FROM auth_attempts WHERE ts < ?", (window_start - 3600,))
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM auth_attempts WHERE key = ? AND ts >= ?",
+            (key, window_start),
+        ).fetchone()
+        conn.commit()
+    return int(row["n"]) if row else 0
+
+
+def auth_attempt_count(key: str, window_seconds: int = 15 * 60) -> int:
+    """Return attempts for `key` in the last `window_seconds` without recording a new one."""
+    now = int(time.time())
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM auth_attempts WHERE key = ? AND ts >= ?",
+            (key, now - window_seconds),
+        ).fetchone()
+    return int(row["n"]) if row else 0
 
 
 # ─────────────────────────────────────────────────────────
 # AUTHENTICATION & PASSWORD UTILITIES
 # ─────────────────────────────────────────────────────────
 
-def hash_password(password: str) -> Tuple[str, str]:
-    """Hash password using PBKDF2-HMAC-SHA256 with 100,000 rounds and random salt."""
+def hash_password(password: str, iterations: int = PBKDF2_ITERATIONS) -> Tuple[str, str]:
+    """Hash password using PBKDF2-HMAC-SHA256 with a random salt."""
     salt = secrets.token_hex(16)
     pwd_hash = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
         salt.encode("utf-8"),
-        100_000
+        iterations,
     ).hex()
     return pwd_hash, salt
 
 
-def verify_password(password: str, password_hash: str, salt: str) -> bool:
-    """Verify password against stored PBKDF2 hash and salt."""
+def verify_password(password: str, password_hash: str, salt: str, iterations: int = PBKDF2_ITERATIONS) -> bool:
+    """Verify password against stored PBKDF2 hash and salt (constant-time compare)."""
     calc_hash = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
         salt.encode("utf-8"),
-        100_000
+        iterations,
     ).hex()
     return hmac.compare_digest(calc_hash, password_hash)
 
 
-def create_access_token(user_id: str, email: str, role: str, expires_in_sec: int = 86400 * 30) -> str:
-    """Create a tamper-proof HMAC-SHA256 bearer token."""
+def _get_dummy_hash() -> str:
+    """Return a cached dummy PBKDF2 hash used to equalize login timing."""
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = hashlib.pbkdf2_hmac(
+            "sha256",
+            b"dummy-password-for-timing-equalization",
+            _DUMMY_SALT.encode("utf-8"),
+            PBKDF2_ITERATIONS,
+        ).hex()
+    return _DUMMY_HASH
+
+
+def create_access_token(user_id: str, email: str, role: str, expires_in_sec: Optional[int] = None) -> str:
+    """Create a tamper-proof HMAC-SHA256 bearer token with a random jti for revocation."""
     import base64
+    ttl = expires_in_sec if expires_in_sec is not None else ACCESS_TOKEN_TTL_SECONDS
+    jti = secrets.token_hex(16)
     payload = {
         "sub": user_id,
         "email": email,
         "role": role,
-        "exp": int(time.time()) + expires_in_sec,
+        "exp": int(time.time()) + ttl,
+        "jti": jti,
     }
     payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode("utf-8").rstrip("=")
@@ -120,7 +225,7 @@ def create_access_token(user_id: str, email: str, role: str, expires_in_sec: int
 
 
 def verify_access_token(token: str) -> Optional[Dict[str, Any]]:
-    """Verify token signature and return payload if valid and unexpired."""
+    """Verify token signature and return payload if valid, unexpired, and not revoked."""
     import base64
     if not token or "." not in token:
         return None
@@ -129,21 +234,54 @@ def verify_access_token(token: str) -> Optional[Dict[str, Any]]:
         expected_sig = hmac.new(AUTH_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected_sig):
             return None
-        
-        # Add padding back if necessary
-        padding = 4 - (len(payload_b64) % 4)
-        if padding != 4:
+
+        padding = (-len(payload_b64)) % 4
+        if padding:
             payload_b64 += "=" * padding
-            
+
         payload_bytes = base64.urlsafe_b64decode(payload_b64.encode("utf-8"))
         payload = json.loads(payload_bytes.decode("utf-8"))
-        
+
         if payload.get("exp", 0) < time.time():
             return None
-            
+
+        jti = payload.get("jti")
+        if jti and is_token_revoked(jti):
+            return None
+
         return payload
     except Exception:
         return None
+
+
+def revoke_token(jti: str, exp: int) -> None:
+    """Record a token's jti so later presentations are rejected (H6)."""
+    if not jti:
+        return
+    with get_db_connection() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO revoked_tokens (jti, revoked_at, exp) VALUES (?, ?, ?)",
+            (jti, int(time.time()), int(exp)),
+        )
+        conn.commit()
+
+
+def is_token_revoked(jti: str) -> bool:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM revoked_tokens WHERE jti = ?",
+            (jti,),
+        ).fetchone()
+        return row is not None
+
+
+def purge_expired_revocations() -> int:
+    """Remove revocation rows whose underlying tokens are already past their exp."""
+    now = int(time.time())
+    with get_db_connection() as conn:
+        cur = conn.execute("DELETE FROM revoked_tokens WHERE exp < ?", (now,))
+        conn.commit()
+        return cur.rowcount or 0
 
 
 # ─────────────────────────────────────────────────────────
@@ -158,8 +296,8 @@ def create_user(name: str, email: str, password: str, role: str = "clinician") -
 
     if not clean_email or "@" not in clean_email:
         raise ValueError("Invalid email address")
-    if len(password) < 6:
-        raise ValueError("Password must be at least 6 characters")
+    if len(password) < 10:
+        raise ValueError("Password must be at least 10 characters")
     if not clean_name:
         raise ValueError("Name cannot be empty")
 
@@ -188,7 +326,7 @@ def create_user(name: str, email: str, password: str, role: str = "clinician") -
 
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
-    """Authenticate user credentials and return user info."""
+    """Authenticate credentials. Always runs PBKDF2 to avoid timing-based user enumeration (H5)."""
     clean_email = email.strip().lower()
     with get_db_connection() as conn:
         row = conn.execute(
@@ -196,18 +334,20 @@ def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
             (clean_email,)
         ).fetchone()
 
-        if not row:
-            return None
+    if row is None:
+        # Run a dummy KDF so the wall-clock cost matches a real login.
+        verify_password(password, _get_dummy_hash(), _DUMMY_SALT)
+        return None
 
-        if not verify_password(password, row["password_hash"], row["salt"]):
-            return None
+    if not verify_password(password, row["password_hash"], row["salt"]):
+        return None
 
-        return {
-            "id": row["id"],
-            "name": row["name"],
-            "email": row["email"],
-            "role": row["role"],
-        }
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "role": row["role"],
+    }
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
@@ -268,6 +408,19 @@ def create_scan(user_id: str, scan_data: Dict[str, Any]) -> str:
         if k not in ("images", "hair_removed_image", "hair_mask_image", "gradcam_image")
     }
 
+    # Hard cap on the persisted blob to prevent an attacker (or bug) from ballooning
+    # the SQLite file with pathological payloads (M9).
+    MAX_RESULT_JSON_BYTES = 256 * 1024  # 256 KiB
+    result_json_str = json.dumps(clean_result)
+    if len(result_json_str.encode("utf-8")) > MAX_RESULT_JSON_BYTES:
+        # Fall back to a minimal shape so persistence does not fail outright.
+        result_json_str = json.dumps({
+            "_truncated": True,
+            "predicted_class": predicted_class,
+            "risk_stage": risk_stage,
+            "spectral_score": spectral_score,
+        })
+
     with get_db_connection() as conn:
         conn.execute(
             """
@@ -290,7 +443,7 @@ def create_scan(user_id: str, scan_data: Dict[str, Any]) -> str:
                 mal_prob,
                 icd10_code,
                 dermasensor_assessment,
-                json.dumps(clean_result),
+                result_json_str,
             )
         )
         conn.commit()

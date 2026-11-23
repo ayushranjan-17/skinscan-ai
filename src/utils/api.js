@@ -47,6 +47,25 @@ export function clearAuth() {
   setUser(null);
 }
 
+/**
+ * Sign out: ask the server to revoke the current token (H6), then clear local state.
+ * Always clears local state, even if the server call fails.
+ */
+export async function authLogout() {
+  const token = getToken();
+  if (token) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Network failure: still clear the local session below.
+    }
+  }
+  clearAuth();
+}
+
 // ─────────────────────────────────────────────────────────
 // AUTHENTICATION API
 // ─────────────────────────────────────────────────────────
@@ -90,14 +109,20 @@ export async function authGetMe() {
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      // Token is definitively invalid — clear it.
       clearAuth();
+      return null;
+    }
+    if (!response.ok) {
+      // Transient server/network error: keep the saved session, retry later.
       return null;
     }
     const data = await response.json();
     setUser(data.user);
     return data.user;
   } catch {
+    // Network blip: preserve the session.
     return null;
   }
 }

@@ -915,7 +915,7 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
       clinicalRationale:
         'Specialist clinical dermatology consultation for high-magnification dermoscopy and lesion analysis.',
       recommendedProcedure:
-        'High-magnification polarized dermoscopy evaluation and diagnostic biopsy or cryosurgery.',
+        'High-magnification polarized dermoscopy evaluation and diagnostic biopsy; any treatment only after histology.',
       isCancer: isCancerStage,
       triageClassification: 'Direct Patient Preference: Consultant Clinical Dermatologist',
     };
@@ -979,6 +979,11 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
         triageClassification: 'Cancerous Malignancy (Requires Surgical Oncologist / Mohs Surgeon)',
       };
     } else if (riskStageNum === 3) {
+      // Stage 3 comes from actinic keratosis OR from a melanoma/BCC probability that crossed the biopsy alert.
+      // Freezing / 5-FU only fits actinic keratosis; a possible melanoma or BCC must be biopsied first.
+      const p3 = base.probabilities || {};
+      const p3Cancer = (Number(p3.mel) || 0) + (Number(p3.bcc) || 0);
+      const akCase = base.code === 'akiec' || (Number(p3.akiec) || 0) >= p3Cancer;
       referral = {
         doctorName: 'Consultant Clinical Dermatologist (MD Dermatology)',
         doctorTitle: 'Specialist in Clinical Dermatology & Photodermatology',
@@ -986,13 +991,16 @@ export function runSkinScanInference(customData = {}, benchmarkData = null) {
         facility: 'Hospital Dermatology Outpatient Department (OPD)',
         contactInfo: 'Schedule appointment via your local Hospital Dermatology OPD',
         referralTimeline: 'Semi-Urgent — Within 2 to 4 Weeks',
-        clinicalRationale:
-          'Pre-cancerous intraepithelial dysplasia from UV exposure. Early eradication prevents invasive carcinoma transformation.',
-        recommendedProcedure:
-          'Targeted liquid nitrogen cryosurgery (-196°C) or topical 5-Fluorouracil (5-FU) 5% field cream.',
+        clinicalRationale: akCase
+          ? 'Pre-cancerous intraepithelial dysplasia from UV exposure. Early treatment prevents progression to invasive carcinoma.'
+          : 'The combined melanoma / basal cell carcinoma probability crossed the biopsy alert. Histology is needed before any treatment.',
+        recommendedProcedure: akCase
+          ? 'Dermoscopy to confirm actinic keratosis, then liquid nitrogen cryotherapy or topical 5-fluorouracil (5-FU) 5% cream. Biopsy first if the lesion is thick, bleeding or growing.'
+          : 'Dermoscopy and diagnostic biopsy (excisional where possible) to rule out melanoma or basal cell carcinoma. Do not freeze or treat the lesion before histology.',
         isCancer: false,
-        triageClassification:
-          'Pre-Cancerous Dysplasia (Requires Specialist Clinical Dermatologist)',
+        triageClassification: akCase
+          ? 'Pre-Cancerous Dysplasia (Requires Specialist Clinical Dermatologist)'
+          : 'Suspicious Lesion: Biopsy Needed to Rule Out Malignancy (Clinical Dermatologist)',
       };
     } else if (riskStageNum === 2) {
       referral = {

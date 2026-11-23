@@ -11,10 +11,17 @@ Endpoints:
 
 import os
 import time
-import traceback
+import logging
+from contextlib import asynccontextmanager
+
+logging.basicConfig(
+    level=os.environ.get("SKINSCAN_LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+log = logging.getLogger("skinscan.api")
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -47,6 +54,8 @@ try:
         update_scan_feedback,
         get_retrain_queue,
         export_retrain_manifest,
+        revoke_token,
+        record_auth_attempt,
         VALID_BIOPSY_LABELS,
     )
 except ImportError:
@@ -64,6 +73,8 @@ except ImportError:
         update_scan_feedback,
         get_retrain_queue,
         export_retrain_manifest,
+        revoke_token,
+        record_auth_attempt,
         VALID_BIOPSY_LABELS,
     )
 
@@ -77,20 +88,55 @@ MODEL_WEIGHTS_PATH = os.environ.get(
 DEVICE = os.environ.get("DEVICE", "auto")  # "auto", "cpu", "cuda"
 PORT = int(os.environ.get("BACKEND_PORT", 8000))
 
+# CORS allowlist (H1). Configure via SKINSCAN_CORS_ORIGINS as a comma-separated list.
+# Defaults to the Vite dev server only; "*" is explicitly rejected when credentials are on.
+_default_cors = "http://localhost:5173,http://127.0.0.1:5173"
+_cors_raw = os.environ.get("SKINSCAN_CORS_ORIGINS", _default_cors)
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+if "*" in CORS_ORIGINS:
+    raise RuntimeError(
+        "SKINSCAN_CORS_ORIGINS must be an explicit origin list; '*' is unsafe with credentialed requests."
+    )
+
+# Rate-limit thresholds (H4).
+LOGIN_IP_LIMIT_PER_15MIN = int(os.environ.get("SKINSCAN_LOGIN_IP_LIMIT", "20"))
+LOGIN_EMAIL_LIMIT_PER_15MIN = int(os.environ.get("SKINSCAN_LOGIN_EMAIL_LIMIT", "8"))
+REGISTER_IP_LIMIT_PER_15MIN = int(os.environ.get("SKINSCAN_REGISTER_IP_LIMIT", "10"))
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: init DB + model; (nothing to tear down on shutdown)."""
+    init_db()
+    init_engine()
+    dist_path = os.path.join(os.path.dirname(__file__), "..", "dist")
+    if os.path.isdir(dist_path):
+        app.mount("/app", StaticFiles(directory=dist_path, html=True), name="frontend")
+        log.info("Serving frontend from %s at /app", dist_path)
+    yield
+
+
 app = FastAPI(
     title="SkinScan AI Clinical Triage API",
     version="2.0.0",
     description="Production DenseNet121 Multi-Modal Skin Cancer Risk Stratification API",
+    lifespan=lifespan,
 )
 
-# Enable CORS for React dev server and production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+def _client_key(request: Request) -> str:
+    """Return a stable per-client identifier for rate-limit bucketing."""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 # ─────────────────────────────────────────────────────────
 # STARTUP: Load Model
@@ -108,38 +154,30 @@ def init_engine() -> SkinScanInferenceEngine:
         if os.path.isfile(MODEL_WEIGHTS_PATH):
             try:
                 engine.load_model(MODEL_WEIGHTS_PATH)
-                print(f"[SkinScan API] Model loaded from: {MODEL_WEIGHTS_PATH}")
+                log.info("Model loaded from: %s", MODEL_WEIGHTS_PATH)
             except Exception as e:
-                print(f"[SkinScan API] WARNING: Failed to load model: {e}")
-                print("[SkinScan API] Server running in DEMO mode (no real predictions)")
+                log.warning("Failed to load model (%s); running in DEMO mode", e)
         else:
-            print(f"[SkinScan API] No model weights found at: {MODEL_WEIGHTS_PATH}")
-            print("[SkinScan API] Server running in DEMO mode.")
-            print("[SkinScan API] To enable real inference, place trained weights at:")
-            print(f"  {os.path.abspath(MODEL_WEIGHTS_PATH)}")
+            log.warning(
+                "No model weights at %s; running in DEMO mode. Place weights at %s to enable inference.",
+                MODEL_WEIGHTS_PATH,
+                os.path.abspath(MODEL_WEIGHTS_PATH),
+            )
     return engine
-
-
-@app.on_event("startup")
-async def startup_load_model():
-    init_db()
-    init_engine()
-
-    # Serve frontend build if available
-    dist_path = os.path.join(os.path.dirname(__file__), "..", "dist")
-    if os.path.isdir(dist_path):
-        app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
-        print(f"[SkinScan API] Serving frontend from: {dist_path}")
 
 
 # ─────────────────────────────────────────────────────────
 # AUTH SCHEMAS & DEPENDENCIES
 # ─────────────────────────────────────────────────────────
 
+# Roles anyone may pick at public sign-up. "researcher" is excluded on purpose (see register()).
+PUBLIC_SIGNUP_ROLES = {"clinician", "patient"}
+
+
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1)
     email: str = Field(..., min_length=3)
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=10)
     role: str = Field(default="clinician")
 
 
@@ -179,19 +217,58 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     return user
 
 
+def require_roles(*allowed: str):
+    """Dependency factory: authenticated user whose role is in `allowed` (H2)."""
+    allowed_set = set(allowed)
+
+    def _dep(user: dict = Depends(get_current_user)) -> dict:
+        if user.get("role") not in allowed_set:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Role '{user.get('role')}' is not authorized for this resource.",
+            )
+        return user
+
+    return _dep
+
+
+def _get_token_payload(authorization: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Extract the verified token payload (incl. jti/exp) without resolving the user."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    return verify_access_token(authorization[7:].strip())
+
+
 # ─────────────────────────────────────────────────────────
 # AUTH & SCAN HISTORY ENDPOINTS
 # ─────────────────────────────────────────────────────────
 
 @app.post("/auth/register")
-def register(req: RegisterRequest):
-    """Register a new clinician or patient user."""
+def register(req: RegisterRequest, request: Request):
+    """Register a new clinician or patient user.
+
+    Researchers can read the retraining queue and export, so that role is never self-assigned here; create
+    researcher accounts on the server with `python3 -m backend.create_researcher`.
+    """
+    role = (req.role or "clinician").strip().lower()
+    if role not in PUBLIC_SIGNUP_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only clinician or patient accounts can be created here. Ask an administrator for researcher access.",
+        )
+    ip = _client_key(request)
+    attempts = record_auth_attempt(f"register:ip:{ip}")
+    if attempts > REGISTER_IP_LIMIT_PER_15MIN:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registrations from this address. Try again later.",
+        )
     try:
         user = create_user(
             name=req.name,
             email=req.email,
             password=req.password,
-            role=req.role,
+            role=role,
         )
         token = create_access_token(user["id"], user["email"], user["role"])
         return {"token": token, "user": user}
@@ -202,13 +279,37 @@ def register(req: RegisterRequest):
 
 
 @app.post("/auth/login")
-def login(req: LoginRequest):
-    """Authenticate clinician or patient credentials."""
+def login(req: LoginRequest, request: Request):
+    """Authenticate clinician or patient credentials (rate-limited per IP and per email)."""
+    ip = _client_key(request)
+    email_key = req.email.strip().lower()
+    ip_attempts = record_auth_attempt(f"login:ip:{ip}")
+    email_attempts = record_auth_attempt(f"login:email:{email_key}")
+    if ip_attempts > LOGIN_IP_LIMIT_PER_15MIN or email_attempts > LOGIN_EMAIL_LIMIT_PER_15MIN:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many sign-in attempts. Please wait a few minutes and try again.",
+        )
+
     user = authenticate_user(req.email, req.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = create_access_token(user["id"], user["email"], user["role"])
     return {"token": token, "user": user}
+
+
+@app.post("/auth/logout")
+def logout(authorization: Optional[str] = Header(None)):
+    """Revoke the caller's current token (H6)."""
+    payload = _get_token_payload(authorization)
+    if not payload:
+        # Treat as idempotent: no-op if the token is missing or already invalid.
+        return {"status": "ok"}
+    jti = payload.get("jti")
+    exp = int(payload.get("exp", 0))
+    if jti:
+        revoke_token(jti, exp)
+    return {"status": "ok"}
 
 
 @app.get("/auth/me")
@@ -241,10 +342,11 @@ def delete_scan(scan_id: str, user: dict = Depends(get_current_user)):
 def submit_biopsy_feedback(
     scan_id: str,
     req: FeedbackRequest,
-    authorization: Optional[str] = Header(None),
+    user: dict = Depends(require_roles("clinician", "researcher")),
 ):
     """
     Attach histopathology ground truth biopsy label and queue scan for offline model fine-tuning.
+    Requires an authenticated clinician/researcher. Non-researchers may only label their own scans (H3).
     """
     label = req.confirmed_biopsy_label.strip().lower()
     if label not in VALID_BIOPSY_LABELS:
@@ -253,15 +355,16 @@ def submit_biopsy_feedback(
             detail=f"Invalid biopsy label '{label}'. Must be one of: {sorted(list(VALID_BIOPSY_LABELS))}",
         )
 
-    user = get_current_user_optional(authorization)
+    # Researchers may annotate any scan; clinicians are scoped to their own scans.
+    scope_user_id = None if user.get("role") == "researcher" else user["id"]
     updated = update_scan_feedback(
         scan_id=scan_id,
         confirmed_biopsy_label=label,
         clinician_notes=req.clinician_notes,
-        user_id=user["id"] if user else None,
+        user_id=scope_user_id,
     )
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Scan '{scan_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Scan '{scan_id}' not found or not accessible")
     return {
         "status": "success",
         "message": "Biopsy ground truth recorded and queued for offline retraining",
@@ -270,14 +373,14 @@ def submit_biopsy_feedback(
 
 
 @app.get("/mlops/retrain-queue")
-def get_mlops_retrain_queue():
-    """Return summary and cases queued for offline v5 retraining."""
+def get_mlops_retrain_queue(user: dict = Depends(require_roles("researcher"))):
+    """Return summary and cases queued for offline v5 retraining. Researcher-only (H2)."""
     return get_retrain_queue()
 
 
 @app.get("/mlops/export-queue")
-def export_mlops_retrain_queue():
-    """Export anonymized JSON manifest of verified biopsy cases for offline fine-tuning."""
+def export_mlops_retrain_queue(user: dict = Depends(require_roles("researcher"))):
+    """Export anonymized JSON manifest of verified biopsy cases. Researcher-only (H2)."""
     manifest = export_retrain_manifest()
     return {
         "export_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -477,7 +580,7 @@ async def analyze_lesion(
                 result["scan_id"] = scan_id
                 result["is_persisted"] = True
             except Exception as db_err:
-                print(f"[SkinScan API] WARNING: Failed to persist scan: {db_err}")
+                log.warning("Failed to persist scan: %s", db_err)
                 result["scan_id"] = None
                 result["is_persisted"] = False
         else:
@@ -489,7 +592,7 @@ async def analyze_lesion(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        log.exception("Inference pipeline error")
         raise HTTPException(
             status_code=500, detail=f"Inference pipeline error: {str(e)}"
         )
@@ -550,10 +653,7 @@ def get_benchmarks():
 # ENTRYPOINT
 # ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("=" * 60)
-    print("  SkinScan AI — Production Inference Server")
-    print("  DenseNet121 Multi-Modal + Focal Loss + Grad-CAM")
-    print(f"  Weights: {MODEL_WEIGHTS_PATH}")
-    print(f"  Port: {PORT}")
-    print("=" * 60)
+    log.info("SkinScan AI — Production Inference Server (DenseNet121 Multi-Modal + Focal Loss + Grad-CAM)")
+    log.info("Weights: %s", MODEL_WEIGHTS_PATH)
+    log.info("Port: %s", PORT)
     uvicorn.run(app, host="0.0.0.0", port=PORT)

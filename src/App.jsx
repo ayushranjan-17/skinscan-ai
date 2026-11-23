@@ -28,7 +28,7 @@ import {
   getUser,
   getToken,
   authGetMe,
-  clearAuth,
+  authLogout,
 } from './utils/api';
 import {
   ShieldCheck,
@@ -88,8 +88,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
 
-  const handleLogout = useCallback(() => {
-    clearAuth();
+  const handleLogout = useCallback(async () => {
+    await authLogout();
     setCurrentUser(null);
   }, []);
 
@@ -227,7 +227,7 @@ export default function App() {
         result = apiResult.result;
         result.isRealInference = true;
         setBackendError(null);
-        console.log('[SkinScan] ✅ Real ML inference from backend');
+        if (import.meta.env.DEV) console.log('[SkinScan] ✅ Real ML inference from backend');
       } else {
         failureDetail = apiResult.error;
         setBackendError(apiResult.error);
@@ -242,11 +242,13 @@ export default function App() {
     if (!result) {
       result = runSkinScanInference(patientData, selectedBenchmark);
       result.isRealInference = false;
-      console.log(
-        backendHealth.online
-          ? '[SkinScan] 📊 Using validated HAM10000 benchmark case profile'
-          : '[SkinScan] 🔄 Using client-side simulation (backend offline)'
-      );
+      if (import.meta.env.DEV) {
+        console.log(
+          backendHealth.online
+            ? '[SkinScan] 📊 Using validated HAM10000 benchmark case profile'
+            : '[SkinScan] 🔄 Using client-side simulation (backend offline)'
+        );
+      }
     }
 
     setAnalysisResult(result);

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(WORKSPACE_ROOT, "backend"))
 
 import torch
 from fastapi.testclient import TestClient
-from backend.app import app, engine, startup_load_model
+from backend.app import app, engine
 from backend.inference import SkinScanInferenceEngine, MultiModalDenseNetHybrid, LOCALIZATIONS
 from ml_pipeline.dullrazor import (
     calculate_ita,
@@ -64,7 +64,14 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         # Initialize engine and load v4 weights
         weights_v4 = os.path.join(WORKSPACE_ROOT, "models", "skinscan_densenet121_v4.pth")
         cls.weights_path = weights_v4
+        # Enter the client as a context manager so FastAPI's lifespan hook runs (init_db + model load),
+        # exactly as it does when the real server starts.
         cls.client = TestClient(app)
+        cls.client.__enter__()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.client.__exit__(None, None, None)
 
     # ─────────────────────────────────────────────────────────
     # PHASE 1: ENVIRONMENT & MODEL CHECKPOINT
@@ -240,9 +247,12 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         r1 = engine.get_doctor_referral("nv", 1)
         self.assertIn("Primary Care Physician", r1["doctorName"])
 
-        # 2-argument signature get_doctor_referral(code, preference)
-        r_pref = engine.get_doctor_referral("mel", "pcp")
+        # Doctor preference overrides auto-routing (passed by name; the stage must be an int)
+        r_pref = engine.get_doctor_referral("mel", 4, doctor_preference="pcp")
         self.assertIn("Primary Care Physician", r_pref["doctorName"])
+        self.assertIn("Urgent", r_pref["referralTimeline"], "a cancer stage keeps an urgent timeline even with PCP")
+        with self.assertRaises(TypeError):
+            engine.get_doctor_referral("mel", "pcp")  # the old (code, preference) shorthand is rejected
         print("  [Pass] Clinical doctor referral routing logic confirmed")
 
     def test_07_risk_stratification_and_cancer_verification(self):
@@ -542,8 +552,25 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         )
         scan_id = scan_resp.json()["scan_id"]
 
+        # The retraining queue and export are researcher-only: guests get 401, clinicians 403.
+        self.assertEqual(self.client.get("/mlops/retrain-queue").status_code, 401)
+        self.assertEqual(self.client.get("/mlops/retrain-queue", headers=headers).status_code, 403)
+        # Researcher is never self-assigned at public sign-up; accounts are made server-side
+        # (python3 -m backend.create_researcher), then log in normally.
+        res_email = f"researcher.{int(time.time() * 1000)}@lab.org"
+        self_signup = self.client.post("/auth/register", json={
+            "name": "Research Lead", "email": res_email, "password": "research_lab_pass", "role": "researcher"
+        })
+        self.assertEqual(self_signup.status_code, 403, "public sign-up must not grant the researcher role")
+        from backend.database import create_user
+        create_user(name="Research Lead", email=res_email, password="research_lab_pass", role="researcher")
+        login = self.client.post("/auth/login", json={"email": res_email, "password": "research_lab_pass"})
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(login.json()["user"]["role"], "researcher")
+        researcher = {"Authorization": f"Bearer {login.json()['token']}"}
+
         # Initial queue count
-        q_init = self.client.get("/mlops/retrain-queue").json()["queued_count"]
+        q_init = self.client.get("/mlops/retrain-queue", headers=researcher).json()["queued_count"]
 
         # Submit valid biopsy feedback
         feedback_resp = self.client.patch(
@@ -569,14 +596,14 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         self.assertEqual(bad_fb.status_code, 422)
 
         # Queue count incremented
-        q_after = self.client.get("/mlops/retrain-queue").json()
+        q_after = self.client.get("/mlops/retrain-queue", headers=researcher).json()
         self.assertEqual(q_after["queued_count"], q_init + 1)
         matching_case = next((c for c in q_after["cases"] if c["scan_id"] == scan_id), None)
         self.assertIsNotNone(matching_case)
         self.assertEqual(matching_case["confirmed_biopsy_label"], "mel")
 
         # Export anonymized retraining manifest
-        exp_resp = self.client.get("/mlops/export-queue")
+        exp_resp = self.client.get("/mlops/export-queue", headers=researcher)
         self.assertEqual(exp_resp.status_code, 200)
         exp_data = exp_resp.json()
         self.assertIn("manifest", exp_data)
@@ -648,6 +675,22 @@ class TestSkinScanEndToEnd(unittest.TestCase):
         bcc_plus_ak = {"mel": 0.02, "bcc": 0.45, "akiec": 0.20, "nv": 0.30, "bkl": 0.03}
         self.assertEqual(map_to_4_tier_risk("bcc", bcc_plus_ak)["risk_stage_num"], 4)
         print("  [Pass] Actinic keratosis maps to Stage 3; Stage 4 still needs melanoma or BCC")
+
+    def test_19_stage_3_from_melanoma_says_biopsy_not_freezing(self):
+        """A Stage 3 result driven by melanoma / BCC probability must recommend biopsy, never cryotherapy or
+        5-FU (destroying a possible melanoma before histology is unsafe). Actinic keratosis keeps cryotherapy."""
+        refer = SkinScanInferenceEngine.get_doctor_referral  # does not touch model state
+        mel_driven = {"mel": 0.295, "bcc": 0.0, "akiec": 0.003, "nv": 0.064, "bkl": 0.631}
+        r = refer(None, "bkl", 3, probabilities=mel_driven)
+        self.assertIn("biopsy", r["recommendedProcedure"].lower())
+        self.assertNotIn("cryo", r["recommendedProcedure"].lower())
+        self.assertNotIn("5-fu", r["recommendedProcedure"].lower())
+
+        ak = {"mel": 0.003, "bcc": 0.147, "akiec": 0.686, "nv": 0.078, "bkl": 0.078}
+        r_ak = refer(None, "akiec", 3, probabilities=ak)
+        self.assertIn("cryotherapy", r_ak["recommendedProcedure"].lower())
+        self.assertNotIn("cryo", refer(None, "nv", 3, doctor_preference="derm")["recommendedProcedure"].lower())
+        print("  [Pass] Stage 3 from melanoma/BCC recommends biopsy; actinic keratosis keeps cryotherapy")
 
 
 if __name__ == "__main__":

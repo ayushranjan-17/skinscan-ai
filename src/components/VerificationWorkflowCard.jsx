@@ -16,6 +16,16 @@ import {
   ChevronUp,
 } from 'lucide-react';
 
+// Fitzpatrick types describe skin colour and how it reacts to sun, not ethnicity.
+const FITZPATRICK_TONE = {
+  I: 'very fair, always burns',
+  II: 'fair, usually burns',
+  III: 'medium, sometimes burns',
+  IV: 'olive / light brown, rarely burns',
+  V: 'brown, very rarely burns',
+  VI: 'dark brown to black, never burns',
+};
+
 export default function VerificationWorkflowCard({ result, customImageSrc }) {
   const [showClassBreakdown, setShowClassBreakdown] = useState(true);
   const [activePreviewModal, setActivePreviewModal] = useState(null);
@@ -123,7 +133,10 @@ export default function VerificationWorkflowCard({ result, customImageSrc }) {
                 </span>
                 {verification.fitzpatrick_type && (
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                    Fitzpatrick Type {verification.fitzpatrick_type} (Asian / South Asian)
+                    Fitzpatrick Type {verification.fitzpatrick_type}
+                    {FITZPATRICK_TONE[verification.fitzpatrick_type]
+                      ? ` (${FITZPATRICK_TONE[verification.fitzpatrick_type]})`
+                      : ''}
                   </span>
                 )}
               </div>

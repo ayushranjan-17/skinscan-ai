@@ -53,6 +53,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       }
     } catch (err) {
       setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
+      // Clear the password on failure so a passer-by can't see it on a shared clinical workstation.
+      setFormData((prev) => ({ ...prev, password: '' }));
     } finally {
       setIsLoading(false);
     }
@@ -92,7 +94,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           <p className="text-xs text-derma-muted">
             {activeTab === 'login'
               ? 'Sign in to access persistent scan history & MLOps feedback'
-              : 'Register as an authorized clinician or health researcher'}
+              : 'Register as a clinician or patient'}
           </p>
         </div>
 
@@ -188,7 +190,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                minLength={6}
+                minLength={10}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-4 py-2.5 bg-derma-surface border border-derma-border rounded-xl text-xs text-slate-50 placeholder-slate-500 focus:outline-none focus:border-derma-accent transition-colors"
               />
@@ -206,7 +208,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               >
                 <option value="clinician">Clinician / Dermatologist</option>
                 <option value="patient">Patient / Consumer</option>
-                <option value="researcher">Clinical AI Researcher</option>
               </select>
             </div>
           )}
